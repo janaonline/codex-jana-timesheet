@@ -1,0 +1,187 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  PROGRAM_HEAD
+  ADMIN
+  OPERATIONS
+}
+
+enum TimesheetStatus {
+  DRAFT
+  SUBMITTED
+  AUTO_SUBMITTED
+  FROZEN
+  EDIT_REQUESTED
+  EDIT_APPROVED
+  REJECTED
+  RESUBMITTED
+}
+
+enum EditRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  EXPIRED
+}
+
+enum EmailLogStatus {
+  PENDING
+  SENT
+  FAILED
+}
+
+model User {
+  id                String        @id @default(cuid())
+  email             String        @unique
+  name              String
+  role              UserRole
+  azureAdId         String?       @unique
+  azureGroups       Json?
+  isActive          Boolean       @default(true)
+  approverUserId    String?
+  approverUser      User?         @relation("ApproverMapping", fields: [approverUserId], references: [id], onDelete: SetNull)
+  assignedUsers     User[]        @relation("ApproverMapping")
+  joinDate          DateTime?
+  exitDate          DateTime?
+  lastLoginAt       DateTime?
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+  timesheets        Timesheet[]
+  requestedEdits    EditRequest[] @relation("RequestedBy")
+  reviewedEdits     EditRequest[] @relation("ReviewedBy")
+  auditActions      AuditLog[]    @relation("AuditActor")
+  auditSubjects     AuditLog[]    @relation("AuditSubjectUser")
+  emailLogs         EmailLog[]
+}
+
+model Project {
+  id          String           @id @default(cuid())
+  code        String           @unique
+  name        String
+  description String?
+  isActive    Boolean          @default(true)
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  entries     TimesheetEntry[]
+}
+
+model Timesheet {
+  id                 String          @id @default(cuid())
+  userId             String
+  user               User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  monthKey           String
+  monthStart         DateTime
+  leaveDays          Int             @default(0)
+  workingDaysCount   Int             @default(0)
+  assignedHours      Float           @default(0)
+  status             TimesheetStatus @default(DRAFT)
+  version            Int             @default(1)
+  autoSubmitted      Boolean         @default(false)
+  submittedAt        DateTime?
+  frozenAt           DateTime?
+  editApprovedAt     DateTime?
+  editWindowClosesAt DateTime?
+  rejectionReason    String?
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+  entries            TimesheetEntry[]
+  editRequests       EditRequest[]
+  emailLogs          EmailLog[]
+  auditLogs          AuditLog[]      @relation("AuditSubjectTimesheet")
+
+  @@unique([userId, monthKey])
+  @@index([monthKey, status])
+}
+
+model TimesheetEntry {
+  id          String    @id @default(cuid())
+  timesheetId String
+  timesheet   Timesheet @relation(fields: [timesheetId], references: [id], onDelete: Cascade)
+  projectId   String
+  project     Project   @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  workDate    DateTime
+  hours       Float
+  description String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([timesheetId, workDate])
+}
+
+model EditRequest {
+  id            String            @id @default(cuid())
+  timesheetId    String
+  timesheet      Timesheet        @relation(fields: [timesheetId], references: [id], onDelete: Cascade)
+  requestedById  String
+  requestedBy    User             @relation("RequestedBy", fields: [requestedById], references: [id], onDelete: Restrict)
+  reviewedById   String?
+  reviewedBy     User?            @relation("ReviewedBy", fields: [reviewedById], references: [id], onDelete: SetNull)
+  status         EditRequestStatus @default(PENDING)
+  reason         String           @db.VarChar(500)
+  decisionReason String?
+  requestedAt    DateTime         @default(now())
+  reviewedAt     DateTime?
+  editableUntil  DateTime?
+
+  @@index([timesheetId, status])
+}
+
+model EmailLog {
+  id                String         @id @default(cuid())
+  userId            String?
+  user              User?          @relation(fields: [userId], references: [id], onDelete: SetNull)
+  timesheetId       String?
+  timesheet         Timesheet?     @relation(fields: [timesheetId], references: [id], onDelete: SetNull)
+  category          String
+  subject           String
+  recipient         String
+  status            EmailLogStatus @default(PENDING)
+  providerMessageId String?
+  htmlPreview       String
+  errorMessage      String?
+  attempts          Int            @default(0)
+  sentAt            DateTime?
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+
+  @@index([status, createdAt])
+}
+
+model AuditLog {
+  id            String     @id @default(cuid())
+  actorUserId   String?
+  actorUser     User?      @relation("AuditActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+  subjectUserId String?
+  subjectUser   User?      @relation("AuditSubjectUser", fields: [subjectUserId], references: [id], onDelete: SetNull)
+  timesheetId   String?
+  timesheet     Timesheet? @relation("AuditSubjectTimesheet", fields: [timesheetId], references: [id], onDelete: SetNull)
+  action        String
+  entityType    String
+  entityId      String?
+  metadata      Json?
+  createdAt     DateTime   @default(now())
+
+  @@index([action, createdAt])
+}
+
+model SystemConfiguration {
+  id                     String   @id @default("default")
+  reminderDays           Json
+  autoSubmitDay          Int      @default(5)
+  completionThreshold    Float    @default(100)
+  inactivityTimeoutMins  Int      @default(30)
+  holidayCalendar        Json
+  roleAccess             Json
+  emailTemplates         Json
+  notifyAdminOnAutoSubmit Boolean @default(true)
+  supportContactEmail    String
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+}
