@@ -163,7 +163,8 @@ export async function runAutoSubmitJob(reference = new Date()) {
 }
 
 export async function runReminderJob(reference = new Date()) {
-  const schedule = getReminderRun(reference);
+  const config = await getSystemConfiguration();
+  const schedule = getReminderRun(reference, config.reminderDays);
 
   if (!schedule || schedule.kind === "FINAL_NOTICE_5TH") {
     return {
@@ -173,7 +174,6 @@ export async function runReminderJob(reference = new Date()) {
     };
   }
 
-  const config = await getSystemConfiguration();
   const users = await prisma.user.findMany({
     where: {
       role: "PROGRAM_HEAD",

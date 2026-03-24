@@ -1,18 +1,22 @@
+import type { AuthOtpPurpose } from "@prisma/client";
 import nodemailer from "nodemailer";
 
 import {
-  buildEditDecisionEmail,
-  buildEditRequestAlertEmail,
-  buildFinalNoticeEmail,
-  buildReminderEmail,
-  buildSubmissionConfirmationEmail,
-} from "@/emails/templates";
-import { EMAIL_RETRY_DELAYS_MS, type ReminderKind } from "@/lib/constants";
+  EMAIL_RETRY_DELAYS_MS,
+  APP_NAME,
+  type ReminderKind,
+} from "@/lib/constants";
 import { env, hasSmtpConfig } from "@/lib/env";
 import { logger } from "@/lib/logger";
 import { captureError } from "@/lib/observability";
 import { prisma } from "@/lib/prisma";
+import { formatDisplayDate } from "@/lib/time";
 import { sleep } from "@/lib/utils";
+import {
+  renderEmailTemplate,
+  type EmailTemplateKey,
+} from "@/emails/templates";
+import { getSystemConfiguration } from "@/services/configuration-service";
 
 let cachedTransporter: nodemailer.Transporter | null = null;
 
@@ -41,6 +45,7 @@ async function sendEmailWithRetry(params: {
   recipient: string;
   subject: string;
   html: string;
+  text: string;
   userId?: string;
   timesheetId?: string;
 }) {
@@ -64,7 +69,7 @@ async function sendEmailWithRetry(params: {
       data: {
         status: "FAILED",
         errorMessage:
-          "SMTP configuration is missing. Placeholder email logged but not sent.",
+          "SMTP configuration is missing. Email content was logged but not sent.",
         attempts: 1,
       },
     });
@@ -86,6 +91,7 @@ async function sendEmailWithRetry(params: {
         to: params.recipient,
         subject: params.subject,
         html: params.html,
+        text: params.text,
       });
 
       await prisma.emailLog.update({
@@ -124,6 +130,93 @@ async function sendEmailWithRetry(params: {
   return null;
 }
 
+async function sendTemplateEmail(params: {
+  category: string;
+  templateKey: EmailTemplateKey;
+  recipient: string;
+  tokens: Record<string, unknown>;
+  userId?: string;
+  timesheetId?: string;
+}) {
+  const config = await getSystemConfiguration();
+  const rendered = renderEmailTemplate(
+    params.templateKey,
+    {
+      supportContactEmail: config.supportContactEmail,
+      appName: APP_NAME,
+      ...params.tokens,
+    },
+    config.emailTemplates,
+  );
+
+  return sendEmailWithRetry({
+    category: params.category,
+    recipient: params.recipient,
+    subject: rendered.subject,
+    html: rendered.html,
+    text: rendered.text,
+    userId: params.userId,
+    timesheetId: params.timesheetId,
+  });
+}
+
+function reminderTemplateKey(kind: ReminderKind): Extract<
+  EmailTemplateKey,
+  "REMINDER_25TH" | "REMINDER_28TH" | "REMINDER_LAST_DAY" | "REMINDER_3RD"
+> {
+  if (kind === "REMINDER_25TH") {
+    return "REMINDER_25TH";
+  }
+
+  if (kind === "REMINDER_28TH") {
+    return "REMINDER_28TH";
+  }
+
+  if (kind === "REMINDER_LAST_DAY") {
+    return "REMINDER_LAST_DAY";
+  }
+
+  return "REMINDER_3RD";
+}
+
+function otpTemplateKey(purpose: AuthOtpPurpose): Extract<
+  EmailTemplateKey,
+  "AUTH_OTP_FIRST_LOGIN" | "AUTH_OTP_FORGOT_PASSWORD" | "AUTH_OTP_ACCOUNT_ACTIVATION"
+> {
+  if (purpose === "FORGOT_PASSWORD") {
+    return "AUTH_OTP_FORGOT_PASSWORD";
+  }
+
+  if (purpose === "ACCOUNT_ACTIVATION") {
+    return "AUTH_OTP_ACCOUNT_ACTIVATION";
+  }
+
+  return "AUTH_OTP_FIRST_LOGIN";
+}
+
+export async function sendOtpMessage(params: {
+  purpose: AuthOtpPurpose;
+  recipient: string;
+  userName: string;
+  userId: string;
+  otpCode: string;
+  expiresInMinutes: number;
+}) {
+  return sendTemplateEmail({
+    category: `AUTH_OTP_${params.purpose}`,
+    templateKey: otpTemplateKey(params.purpose),
+    recipient: params.recipient,
+    userId: params.userId,
+    tokens: {
+      userName: params.userName,
+      otpCode: params.otpCode,
+      expiresInMinutes: params.expiresInMinutes,
+      supportContactEmail: env.supportContactEmail,
+      appName: APP_NAME,
+    },
+  });
+}
+
 export async function sendReminderMessage(params: {
   kind: ReminderKind;
   recipient: string;
@@ -140,14 +233,24 @@ export async function sendReminderMessage(params: {
   requestEditUrl?: string;
   supportContactEmail: string;
 }) {
-  const { subject, html } = buildReminderEmail(params);
-  return sendEmailWithRetry({
+  return sendTemplateEmail({
     category: params.kind,
+    templateKey: reminderTemplateKey(params.kind),
     recipient: params.recipient,
-    subject,
-    html,
     userId: params.userId,
     timesheetId: params.timesheetId,
+    tokens: {
+      userName: params.userName,
+      monthLabel: params.monthLabel,
+      completionPercentage: params.completionPercentage,
+      remainingHours: params.remainingHours,
+      daysRemaining: params.daysRemaining,
+      deadlineDate: formatDisplayDate(params.deadlineDate),
+      autoSubmitDate: formatDisplayDate(params.autoSubmitDate),
+      submitUrl: params.submitUrl,
+      requestEditUrl: params.requestEditUrl,
+      supportContactEmail: params.supportContactEmail,
+    },
   });
 }
 
@@ -163,14 +266,22 @@ export async function sendFinalNoticeMessage(params: {
   requestEditUrl?: string;
   supportContactEmail: string;
 }) {
-  const { subject, html } = buildFinalNoticeEmail(params);
-  return sendEmailWithRetry({
+  return sendTemplateEmail({
     category: "FINAL_NOTICE_5TH",
+    templateKey: params.autoSubmitted
+      ? "FINAL_NOTICE_SUCCESS"
+      : "FINAL_NOTICE_FAILURE",
     recipient: params.recipient,
-    subject,
-    html,
     userId: params.userId,
     timesheetId: params.timesheetId,
+    tokens: {
+      userName: params.userName,
+      monthLabel: params.monthLabel,
+      completionPercentage: params.completionPercentage,
+      remainingHours: params.remainingHours,
+      requestEditUrl: params.requestEditUrl,
+      supportContactEmail: params.supportContactEmail,
+    },
   });
 }
 
@@ -186,14 +297,22 @@ export async function sendSubmissionConfirmationMessage(params: {
   breakdownHtml: string;
   requestEditUrl?: string;
 }) {
-  const { subject, html } = buildSubmissionConfirmationEmail(params);
-  return sendEmailWithRetry({
+  return sendTemplateEmail({
     category: "SUBMISSION_CONFIRMATION",
+    templateKey: "SUBMISSION_CONFIRMATION",
     recipient: params.recipient,
-    subject,
-    html,
     userId: params.userId,
     timesheetId: params.timesheetId,
+    tokens: {
+      userName: params.userName,
+      monthLabel: params.monthLabel,
+      submissionTimestamp: params.submissionTimestamp,
+      submissionMethod:
+        params.submissionMethod === "auto" ? "Auto submit" : "Manual submit",
+      totalHoursRecorded: params.totalHoursRecorded,
+      breakdownHtml: params.breakdownHtml,
+      requestEditUrl: params.requestEditUrl,
+    },
   });
 }
 
@@ -208,14 +327,20 @@ export async function sendEditRequestAlertMessage(params: {
   reviewUrl: string;
   timesheetUrl: string;
 }) {
-  const { subject, html } = buildEditRequestAlertEmail(params);
-  return sendEmailWithRetry({
+  return sendTemplateEmail({
     category: "EDIT_REQUEST_ALERT",
+    templateKey: "EDIT_REQUEST_ALERT",
     recipient: params.recipient,
-    subject,
-    html,
     userId: params.requesterUserId,
     timesheetId: params.timesheetId,
+    tokens: {
+      approverName: params.approverName,
+      userName: params.requesterName,
+      monthLabel: params.monthLabel,
+      reason: params.reason,
+      reviewUrl: params.reviewUrl,
+      timesheetUrl: params.timesheetUrl,
+    },
   });
 }
 
@@ -230,14 +355,21 @@ export async function sendEditDecisionMessage(params: {
   rejectionReason?: string | null;
   timesheetUrl: string;
 }) {
-  const { subject, html } = buildEditDecisionEmail(params);
-  return sendEmailWithRetry({
+  return sendTemplateEmail({
     category: params.approved ? "EDIT_APPROVED" : "EDIT_REJECTED",
+    templateKey: params.approved ? "EDIT_APPROVED" : "EDIT_REJECTED",
     recipient: params.recipient,
-    subject,
-    html,
     userId: params.userId,
     timesheetId: params.timesheetId,
+    tokens: {
+      userName: params.userName,
+      monthLabel: params.monthLabel,
+      editableUntil: params.editableUntil
+        ? formatDisplayDate(params.editableUntil)
+        : "",
+      rejectionReason: params.rejectionReason ?? "",
+      timesheetUrl: params.timesheetUrl,
+    },
   });
 }
 
@@ -248,24 +380,16 @@ export async function sendAdminAutoSubmitNoticeMessage(params: {
   totalHoursRecorded: number;
   timesheetId: string;
 }) {
-  const subject = `[MVP placeholder] ${params.monthLabel} timesheet auto-submitted for ${params.programHeadName}`;
-  const html = `
-    <div style="font-family: Arial, sans-serif; padding: 24px;">
-      <h1 style="font-size: 22px; margin-bottom: 16px;">Auto-submit notification</h1>
-      <p>This is a placeholder admin notification template until final stakeholder email content is supplied.</p>
-      <ul>
-        <li>Program head: ${params.programHeadName}</li>
-        <li>Month: ${params.monthLabel}</li>
-        <li>Total hours recorded: ${params.totalHoursRecorded}</li>
-      </ul>
-    </div>
-  `;
-
-  return sendEmailWithRetry({
+  return sendTemplateEmail({
     category: "ADMIN_AUTO_SUBMIT_NOTICE",
+    templateKey: "ADMIN_AUTO_SUBMIT_NOTICE",
     recipient: params.recipient,
-    subject,
-    html,
     timesheetId: params.timesheetId,
+    tokens: {
+      userName: "Admin reviewer",
+      monthLabel: params.monthLabel,
+      programHeadName: params.programHeadName,
+      totalHoursRecorded: params.totalHoursRecorded,
+    },
   });
 }

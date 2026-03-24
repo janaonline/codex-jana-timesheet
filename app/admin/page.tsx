@@ -1,23 +1,20 @@
-import { redirect } from "next/navigation";
-
+import { ConfigurationPanel } from "@/components/admin/configuration-panel";
 import { Card } from "@/components/common/card";
 import { PortalShell } from "@/components/common/portal-shell";
-import { requireAppSession } from "@/lib/auth";
-import { prisma } from "@/lib/prisma";
-import { getComplianceReport, getEditRequestReport } from "@/services/report-service";
-import { getSystemConfiguration } from "@/services/configuration-service";
-import { ConfigurationPanel } from "@/components/admin/configuration-panel";
 import {
   updateApproverMappingsAction,
   updateConfigurationAction,
 } from "@/app/admin/actions";
+import { requireAppSession } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
+import { hasPermission } from "@/lib/rbac";
+import { getSystemConfiguration } from "@/services/configuration-service";
+import { getComplianceReport, getEditRequestReport } from "@/services/report-service";
 
 export default async function AdminPage() {
-  const session = await requireAppSession();
-
-  if (session.user.role === "PROGRAM_HEAD") {
-    redirect("/dashboard");
-  }
+  const session = await requireAppSession({
+    permission: "reports:read:admin",
+  });
 
   const [compliance, editReport, config, programHeads, approvers] = await Promise.all([
     getComplianceReport(),
@@ -53,6 +50,7 @@ export default async function AdminPage() {
   return (
     <PortalShell
       role={session.user.role}
+      permissions={session.user.permissions}
       userName={session.user.name ?? session.user.email ?? "Admin"}
       currentPath="/admin"
     >
@@ -60,9 +58,8 @@ export default async function AdminPage() {
         <p className="text-xs uppercase tracking-[0.28em] text-stone-500">Admin dashboard</p>
         <h2 className="text-4xl font-semibold text-stone-950">Operational oversight</h2>
         <p className="max-w-3xl text-sm leading-6 text-stone-600">
-          This MVP admin view focuses on compliance, reminder outcomes, edit requests, and
-          lean oversight reporting without adding advanced analytics outside the documented
-          scope.
+          Review compliance, track edit requests, and manage internal settings without
+          changing the approved core workflow rules.
         </p>
       </Card>
 
@@ -99,11 +96,11 @@ export default async function AdminPage() {
           {compliance.pendingByDirector.slice(0, 8).map((item) => (
             <div
               key={item.directorName}
-              className="rounded-[22px] bg-stone-50 px-4 py-4 text-sm"
+              className="rounded-[24px] border border-stone-200 bg-stone-50 px-4 py-4 text-sm"
             >
               <p className="font-semibold text-stone-900">{item.directorName}</p>
               <p className="mt-1 text-stone-600">
-                {item.status} • {item.completionPercentage}% complete
+                {item.status} | {item.completionPercentage}% complete
               </p>
             </div>
           ))}
@@ -113,7 +110,7 @@ export default async function AdminPage() {
           {editReport.commonReasons.map((item) => (
             <div
               key={item.reason}
-              className="rounded-[22px] bg-stone-50 px-4 py-4 text-sm"
+              className="rounded-[24px] border border-stone-200 bg-stone-50 px-4 py-4 text-sm"
             >
               <p className="font-semibold text-stone-900">{item.reason}</p>
               <p className="mt-1 text-stone-600">{item.count} requests</p>
@@ -122,13 +119,19 @@ export default async function AdminPage() {
         </Card>
       </div>
 
-      <ConfigurationPanel
-        config={config}
-        programHeads={programHeads}
-        approvers={approvers}
-        onConfigSubmit={updateConfigurationAction}
-        onApproverSubmit={updateApproverMappingsAction}
-      />
+      {hasPermission(
+        session.user.role,
+        "configuration:manage",
+        config.roleAccess,
+      ) ? (
+        <ConfigurationPanel
+          config={config}
+          programHeads={programHeads}
+          approvers={approvers}
+          onConfigSubmit={updateConfigurationAction}
+          onApproverSubmit={updateApproverMappingsAction}
+        />
+      ) : null}
     </PortalShell>
   );
 }

@@ -5,7 +5,7 @@ import { getMonthLabel } from "@/lib/time";
 
 export async function GET(request: Request) {
   return handleApiRoute(request, {
-    roles: ["ADMIN", "OPERATIONS"],
+    permission: "edit-requests:review",
     actionName: "list_edit_requests",
     handler: async () => {
       const requests = await listPendingEditRequests();

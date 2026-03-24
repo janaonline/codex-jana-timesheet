@@ -46,11 +46,11 @@ export function ReportExportActions({
   }
 
   return (
-    <div className="flex gap-3">
-      <Button variant="secondary" onClick={() => download("csv")}>
+    <div className="grid w-full gap-3 sm:w-auto sm:grid-cols-2">
+      <Button className="w-full" variant="secondary" onClick={() => download("csv")}>
         Export Excel/CSV
       </Button>
-      <Button variant="secondary" onClick={() => download("pdf")}>
+      <Button className="w-full" variant="secondary" onClick={() => download("pdf")}>
         Export PDF
       </Button>
     </div>

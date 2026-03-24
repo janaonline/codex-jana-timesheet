@@ -28,8 +28,12 @@ export function hasPermission(
   permission: Permission,
   overrides?: unknown,
 ) {
+  return getPermissionsForRole(role, overrides).includes(permission);
+}
+
+export function getPermissionsForRole(role: UserRole, overrides?: unknown) {
   const matrix = normalizeRoleAccess(overrides);
-  return matrix[role].includes(permission);
+  return matrix[role];
 }
 
 export function assertPermission(

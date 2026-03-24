@@ -253,7 +253,7 @@ export function TimesheetEditor({
   const readOnly = !timesheet.isEditable;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 pb-8">
       <RequestEditModal
         open={requestEditOpen}
         onClose={() => setRequestEditOpen(false)}
@@ -261,12 +261,12 @@ export function TimesheetEditor({
       />
 
       <Card className="space-y-5">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.26em] text-stone-500">
               Monthly timesheet
             </p>
-            <h2 className="mt-2 text-3xl font-semibold text-stone-950">
+            <h2 className="mt-2 text-3xl font-semibold text-stone-950 sm:text-4xl">
               {timesheet.monthLabel}
             </h2>
             <div className="mt-4 flex flex-wrap items-center gap-3">
@@ -278,15 +278,15 @@ export function TimesheetEditor({
               ) : null}
             </div>
           </div>
-          <div className="flex flex-wrap gap-3">
+          <div className="flex gap-3 overflow-x-auto pb-1">
             {windowTimesheets.map((item) => (
               <Link
                 key={item.id}
                 href={`/timesheets/${item.id}`}
-                className={`rounded-full px-4 py-2 text-sm font-semibold ${
+                className={`shrink-0 rounded-full border px-4 py-2 text-sm font-semibold transition ${
                   item.id === timesheet.id
-                    ? "bg-stone-950 text-white"
-                    : "border border-stone-300 bg-white text-stone-700"
+                    ? "border-amber-300 bg-amber-300 text-stone-950"
+                    : "border-stone-300 bg-white text-stone-700 hover:bg-stone-50"
                 }`}
               >
                 {item.monthLabel}
@@ -295,10 +295,10 @@ export function TimesheetEditor({
           </div>
         </div>
 
-        <div className="grid gap-4 lg:grid-cols-4">
-          <Card className="bg-stone-950 text-white">
-            <p className="text-xs uppercase tracking-[0.26em] text-stone-300">Recorded hours</p>
-            <p className="mt-3 text-3xl font-semibold">{totalHours}</p>
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <Card className="border-amber-200 bg-amber-50">
+            <p className="text-xs uppercase tracking-[0.26em] text-stone-500">Recorded hours</p>
+            <p className="mt-3 text-3xl font-semibold text-stone-950">{totalHours}</p>
           </Card>
           <Card>
             <p className="text-xs uppercase tracking-[0.26em] text-stone-500">Assigned hours</p>
@@ -328,7 +328,7 @@ export function TimesheetEditor({
         </div>
 
         <ProgressBar value={completionPercentage} label={`Completion: ${completionPercentage}%`} />
-        <div className="grid gap-4 lg:grid-cols-[220px_1fr]">
+        <div className="grid gap-4 lg:grid-cols-[240px_1fr]">
           <div>
             <label className="mb-2 block text-sm font-medium text-stone-700">
               Number of leaves
@@ -359,17 +359,100 @@ export function TimesheetEditor({
         </div>
       </Card>
 
-      <Card>
-        <div className="flex items-center justify-between">
+      <Card className="space-y-6">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h3 className="text-xl font-semibold text-stone-950">Daily breakdown</h3>
             <p className="mt-1 text-sm text-stone-600">
               Hours must be recorded in 0.25 increments and daily totals cannot exceed 24.
             </p>
           </div>
-          {!readOnly ? <Button onClick={addEntry}>Add entry</Button> : null}
+          {!readOnly ? <Button className="w-full sm:w-auto" onClick={addEntry}>Add entry</Button> : null}
         </div>
-        <div className="mt-6 overflow-x-auto">
+
+        <div className="space-y-4 md:hidden">
+          {draft.entries.map((entry, index) => (
+            <div
+              key={entry.localId}
+              className="rounded-[28px] border border-stone-200 bg-stone-50 p-4"
+            >
+              <div className="mb-4 flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-xs uppercase tracking-[0.22em] text-stone-500">
+                    Entry {index + 1}
+                  </p>
+                  <p className="mt-1 text-sm text-stone-600">{entry.projectName || "Unassigned"}</p>
+                </div>
+                {!readOnly ? (
+                  <Button variant="ghost" onClick={() => deleteEntry(entry.localId)}>
+                    Remove
+                  </Button>
+                ) : null}
+              </div>
+              <div className="grid gap-4">
+                <label className="text-sm font-medium text-stone-700">
+                  Date
+                  <Input
+                    className="mt-2"
+                    type="date"
+                    value={entry.workDate}
+                    disabled={readOnly}
+                    onChange={(event) =>
+                      updateEntry(entry.localId, "workDate", event.target.value)
+                    }
+                  />
+                </label>
+                <label className="text-sm font-medium text-stone-700">
+                  Sub-program
+                  <Select
+                    className="mt-2"
+                    value={entry.projectId}
+                    disabled={readOnly}
+                    onChange={(event) =>
+                      updateEntry(entry.localId, "projectId", event.target.value)
+                    }
+                  >
+                    {availableProjects.map((project) => (
+                      <option key={project.id} value={project.id}>
+                        {project.code} - {project.name}
+                      </option>
+                    ))}
+                  </Select>
+                </label>
+                <label className="text-sm font-medium text-stone-700">
+                  Hours
+                  <Input
+                    className="mt-2"
+                    type="number"
+                    min={0.25}
+                    max={24}
+                    step={0.25}
+                    value={entry.hours}
+                    disabled={readOnly}
+                    onChange={(event) =>
+                      updateEntry(entry.localId, "hours", Number(event.target.value))
+                    }
+                  />
+                </label>
+                <label className="text-sm font-medium text-stone-700">
+                  Description
+                  <Textarea
+                    className="mt-2"
+                    rows={3}
+                    value={entry.description}
+                    disabled={readOnly}
+                    onChange={(event) =>
+                      updateEntry(entry.localId, "description", event.target.value)
+                    }
+                    placeholder="Required before final submission"
+                  />
+                </label>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div className="hidden overflow-x-auto md:block">
           <table className="min-w-full border-separate border-spacing-y-3 text-sm">
             <thead>
               <tr className="text-left text-stone-500">
@@ -446,23 +529,25 @@ export function TimesheetEditor({
         </div>
       </Card>
 
-      <div className="flex flex-wrap gap-3">
+      <div className="grid gap-3 sm:flex sm:flex-wrap">
         {!readOnly ? (
-          <Button variant="secondary" onClick={() => autosave.saveNow()}>
+          <Button className="w-full sm:w-auto" variant="secondary" onClick={() => autosave.saveNow()}>
             Save draft
           </Button>
         ) : null}
         {!readOnly && isExactlyComplete ? (
-          <Button onClick={handleSubmit}>Submit timesheet</Button>
+          <Button className="w-full sm:w-auto" onClick={handleSubmit}>
+            Submit timesheet
+          </Button>
         ) : null}
         {timesheet.canRequestEdit ? (
-          <Button variant="secondary" onClick={() => setRequestEditOpen(true)}>
+          <Button className="w-full sm:w-auto" variant="secondary" onClick={() => setRequestEditOpen(true)}>
             Request edit
           </Button>
         ) : null}
         <Link
           href="/dashboard"
-          className="inline-flex items-center rounded-full border border-stone-300 bg-white px-4 py-2 text-sm font-semibold text-stone-700"
+          className="inline-flex min-h-11 items-center justify-center rounded-full border border-stone-300 bg-white px-4 py-2 text-sm font-semibold text-stone-700"
         >
           Back to dashboard
         </Link>

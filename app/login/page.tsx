@@ -1,11 +1,22 @@
-import { LoginScreen } from "@/components/auth/login-screen";
-import { hasAzureSsoConfig, isLocalDevelopmentAuthEnabled } from "@/lib/env";
+import { redirect } from "next/navigation";
 
-export default function LoginPage() {
-  return (
-    <LoginScreen
-      azureEnabled={hasAzureSsoConfig()}
-      localAuthEnabled={isLocalDevelopmentAuthEnabled()}
-    />
-  );
+import { LoginScreen } from "@/components/auth/login-screen";
+import { getAppSession, getHomePathForRole } from "@/lib/auth";
+
+export default async function LoginPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ view?: "login" | "activate" | "forgot" }>;
+}) {
+  const [session, params] = await Promise.all([getAppSession(), searchParams]);
+
+  if (session?.user) {
+    if (session.user.passwordSetupRequired) {
+      redirect("/auth/set-password");
+    }
+
+    redirect(getHomePathForRole(session.user.role));
+  }
+
+  return <LoginScreen defaultView={params.view ?? "login"} />;
 }

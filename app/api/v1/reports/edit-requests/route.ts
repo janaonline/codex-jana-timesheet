@@ -4,7 +4,7 @@ import { getEditRequestReport } from "@/services/report-service";
 
 export async function GET(request: Request) {
   return handleApiRoute(request, {
-    roles: ["ADMIN", "OPERATIONS"],
+    permission: "reports:read:admin",
     actionName: "get_edit_request_report",
     handler: async () => apiSuccess(await getEditRequestReport()),
   });

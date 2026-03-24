@@ -5,10 +5,10 @@ const STATUS_CLASS_MAP: Record<string, string> = {
   SUBMITTED: "bg-emerald-100 text-emerald-700",
   AUTO_SUBMITTED: "bg-sky-100 text-sky-700",
   FROZEN: "bg-stone-200 text-stone-800",
-  EDIT_REQUESTED: "bg-amber-100 text-amber-700",
-  EDIT_APPROVED: "bg-teal-100 text-teal-700",
+  EDIT_REQUESTED: "bg-amber-100 text-amber-800",
+  EDIT_APPROVED: "bg-lime-100 text-lime-800",
   REJECTED: "bg-rose-100 text-rose-700",
-  RESUBMITTED: "bg-indigo-100 text-indigo-700",
+  RESUBMITTED: "bg-violet-100 text-violet-700",
 };
 
 export function Badge({

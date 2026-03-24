@@ -44,16 +44,16 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   return (
     <ToastContext.Provider value={value}>
       {children}
-      <div className="fixed bottom-4 right-4 z-[60] flex max-w-sm flex-col gap-3">
+      <div className="fixed inset-x-4 bottom-4 z-[60] flex max-w-md flex-col gap-3 sm:left-auto sm:right-4 sm:inset-x-auto">
         {toasts.map((toast) => (
           <div
             key={toast.id}
-            className={`rounded-2xl px-4 py-3 text-sm font-medium shadow-lg ${
+            className={`rounded-[24px] border px-4 py-3 text-sm font-medium shadow-[0_18px_40px_-28px_rgba(17,17,17,0.35)] ${
               toast.tone === "error"
-                ? "bg-rose-600 text-white"
+                ? "border-rose-200 bg-rose-50 text-rose-700"
                 : toast.tone === "success"
-                  ? "bg-emerald-600 text-white"
-                  : "bg-stone-900 text-white"
+                  ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                  : "border-amber-200 bg-amber-50 text-stone-800"
             }`}
           >
             {toast.title}

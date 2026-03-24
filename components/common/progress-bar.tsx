@@ -9,7 +9,7 @@ export function ProgressBar({
 }) {
   const clamped = Math.max(0, Math.min(value, 100));
   const tone =
-    clamped >= 100 ? "bg-emerald-500" : clamped >= 80 ? "bg-amber-500" : "bg-rose-500";
+    clamped >= 100 ? "bg-emerald-500" : clamped >= 80 ? "bg-amber-400" : "bg-stone-900";
 
   return (
     <div className="space-y-2">

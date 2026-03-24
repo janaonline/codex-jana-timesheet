@@ -37,11 +37,21 @@ enum EmailLogStatus {
   FAILED
 }
 
+enum AuthOtpPurpose {
+  FIRST_LOGIN
+  FORGOT_PASSWORD
+  ACCOUNT_ACTIVATION
+}
+
 model User {
   id                String        @id @default(cuid())
   email             String        @unique
   name              String
   role              UserRole
+  passwordHash      String?
+  passwordSetAt     DateTime?
+  passwordResetRequired Boolean   @default(false)
+  emailVerifiedAt   DateTime?
   azureAdId         String?       @unique
   azureGroups       Json?
   isActive          Boolean       @default(true)
@@ -59,6 +69,7 @@ model User {
   auditActions      AuditLog[]    @relation("AuditActor")
   auditSubjects     AuditLog[]    @relation("AuditSubjectUser")
   emailLogs         EmailLog[]
+  otpChallenges     AuthOtpChallenge[]
 }
 
 model Project {
@@ -169,6 +180,25 @@ model AuditLog {
   createdAt     DateTime   @default(now())
 
   @@index([action, createdAt])
+}
+
+model AuthOtpChallenge {
+  id                String         @id @default(cuid())
+  userId            String?
+  user              User?          @relation(fields: [userId], references: [id], onDelete: SetNull)
+  email             String
+  purpose           AuthOtpPurpose
+  codeHash          String
+  expiresAt         DateTime
+  resendAvailableAt DateTime
+  attempts          Int            @default(0)
+  verifiedAt        DateTime?
+  consumedAt        DateTime?
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+
+  @@index([email, purpose, createdAt])
+  @@index([expiresAt])
 }
 
 model SystemConfiguration {
