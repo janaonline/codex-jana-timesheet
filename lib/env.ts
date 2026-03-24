@@ -59,7 +59,12 @@ export function hasAzureSsoConfig() {
 }
 
 export function isLocalDevelopmentAuthEnabled() {
-  return env.nodeEnv !== "production" && env.localAuthEnabled;
+  return (
+    env.localAuthEnabled &&
+    (env.nodeEnv !== "production" ||
+      env.nextAuthUrl.includes("localhost") ||
+      env.nextAuthUrl.includes("127.0.0.1"))
+  );
 }
 
 export function hasSmtpConfig() {

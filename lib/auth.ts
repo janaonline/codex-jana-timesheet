@@ -6,7 +6,7 @@ import CredentialsProvider from "next-auth/providers/credentials";
 import { env, hasAzureSsoConfig, isLocalDevelopmentAuthEnabled } from "@/lib/env";
 import { AppError } from "@/lib/errors";
 import { prisma } from "@/lib/prisma";
-import type { UserRole } from "@/lib/constants";
+import { LOCAL_AUTH_PROVIDER_ID, type UserRole } from "@/lib/constants";
 import { getSystemConfiguration } from "@/services/configuration-service";
 import { safeWriteAuditLog } from "@/services/audit-service";
 
@@ -182,7 +182,6 @@ function buildProviders(): NextAuthOptions["providers"] {
   if (isLocalDevelopmentAuthEnabled()) {
     providers.push(
       CredentialsProvider({
-        id: "local-dev",
         name: "Local Development Sign-In",
         credentials: {
           email: {
@@ -223,7 +222,7 @@ export const authOptions: NextAuthOptions = {
   },
   callbacks: {
     async signIn({ account, profile, user }) {
-      if (account?.provider === "local-dev") {
+      if (account?.provider === LOCAL_AUTH_PROVIDER_ID) {
         return Boolean(user);
       }
 

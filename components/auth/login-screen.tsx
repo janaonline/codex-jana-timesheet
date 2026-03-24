@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 
 import { Button } from "@/components/common/button";
 import { Input } from "@/components/common/input";
+import { LOCAL_AUTH_PROVIDER_ID } from "@/lib/constants";
 
 const LOCAL_DEV_ACCOUNTS = [
   {
@@ -65,7 +66,7 @@ export function LoginScreen({
     setLocalError(null);
     setIsLocalSigningIn(true);
 
-    const result = await signIn("local-dev", {
+    const result = await signIn(LOCAL_AUTH_PROVIDER_ID, {
       email,
       callbackUrl: "/",
       redirect: false,

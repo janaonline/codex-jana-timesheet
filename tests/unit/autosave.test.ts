@@ -1,4 +1,4 @@
-import { saveWithRetry } from "@/hooks/use-autosave";
+import { saveWithRetry } from "@/lib/autosave";
 
 describe("auto-save retry behavior", () => {
   beforeEach(() => {

@@ -2,6 +2,7 @@ export const IST_TIMEZONE = "Asia/Kolkata";
 export const APP_NAME = "Directors Timesheet Management System";
 export const ORGANIZATION_NAME = "Janaagraha";
 export const API_VERSION_PREFIX = "/api/v1";
+export const LOCAL_AUTH_PROVIDER_ID = "credentials";
 export const DEFAULT_RATE_LIMIT = 100;
 export const DEFAULT_RATE_LIMIT_WINDOW_MS = 60_000;
 export const AUTOSAVE_RETRY_DELAYS_MS = [500, 1_000, 2_000] as const;
