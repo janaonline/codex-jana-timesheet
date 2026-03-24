@@ -13,7 +13,7 @@ export async function POST(
   context: { params: Promise<{ id: string }> },
 ) {
   return handleApiRoute(request, {
-    roles: ["ADMIN", "OPERATIONS"],
+    permission: "edit-requests:review",
     requireOriginCheck: true,
     actionName: "reject_edit_request",
     handler: async (session) => {

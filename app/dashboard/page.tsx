@@ -23,6 +23,7 @@ export default async function DashboardPage() {
   return (
     <PortalShell
       role={session.user.role}
+      permissions={session.user.permissions}
       userName={session.user.name ?? session.user.email ?? "Program Head"}
       currentPath="/dashboard"
     >
@@ -41,12 +42,14 @@ export default async function DashboardPage() {
               eligible for auto-submit.
             </p>
           </div>
-          <div className="flex flex-wrap gap-3">
+          <div className="grid w-full gap-3 sm:w-auto sm:grid-cols-2">
             <Link href={`/timesheets/${dashboard.currentTimesheet.id}`}>
-              <Button>Open current month</Button>
+              <Button className="w-full">Open current month</Button>
             </Link>
             <Link href={`/timesheets/${dashboard.previousTimesheet.id}`}>
-              <Button variant="secondary">Open previous month</Button>
+              <Button className="w-full" variant="secondary">
+                Open previous month
+              </Button>
             </Link>
           </div>
         </div>

@@ -99,15 +99,17 @@ export function EditRequestTable({
         <div className="space-y-4">
           <Textarea
             rows={5}
+            maxLength={500}
             value={rejectionReason}
             onChange={(event) => setRejectionReason(event.target.value)}
             placeholder="Rejection reason"
           />
-          <div className="flex justify-end gap-3">
-            <Button variant="secondary" onClick={() => setRejectingRequestId(null)}>
+          <div className="grid gap-3 sm:flex sm:justify-end">
+            <Button className="w-full sm:w-auto" variant="secondary" onClick={() => setRejectingRequestId(null)}>
               Cancel
             </Button>
             <Button
+              className="w-full sm:w-auto"
               variant="danger"
               onClick={reject}
               disabled={!rejectionReason.trim()}
@@ -141,11 +143,12 @@ export function EditRequestTable({
                   Requested {formatDisplayDate(request.requestedAt)}
                 </p>
               </div>
-              <div className="flex gap-3">
-                <Button variant="secondary" onClick={() => approve(request.id)}>
+              <div className="grid w-full gap-3 sm:w-auto sm:grid-cols-2">
+                <Button className="w-full" variant="secondary" onClick={() => approve(request.id)}>
                   Approve
                 </Button>
                 <Button
+                  className="w-full"
                   variant="danger"
                   onClick={() => setRejectingRequestId(request.id)}
                 >

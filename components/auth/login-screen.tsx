@@ -1,113 +1,204 @@
 "use client";
 
-import { startTransition, useEffect, useState } from "react";
-import { signIn, useSession } from "next-auth/react";
+import { useEffect, useMemo, useState } from "react";
+import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
 
 import { Button } from "@/components/common/button";
+import { Card } from "@/components/common/card";
 import { Input } from "@/components/common/input";
-import { LOCAL_AUTH_PROVIDER_ID } from "@/lib/constants";
+import {
+  OTP_AUTH_PROVIDER_ID,
+  PASSWORD_AUTH_PROVIDER_ID,
+  type OtpPurpose,
+} from "@/lib/constants";
 
-const LOCAL_DEV_ACCOUNTS = [
-  {
-    email: "anita.director@janaagraha.org",
-    label: "Anita Director",
-    roleLabel: "Program Head",
-  },
-  {
-    email: "ravi.director@janaagraha.org",
-    label: "Ravi Director",
-    roleLabel: "Program Head",
-  },
-  {
-    email: "girija.admin@janaagraha.org",
-    label: "Girija Admin",
-    roleLabel: "Admin",
-  },
-  {
-    email: "kishora.admin@janaagraha.org",
-    label: "Kishora Admin",
-    roleLabel: "Admin",
-  },
-  {
-    email: "mira.operations@janaagraha.org",
-    label: "Mira Operations",
-    roleLabel: "Operations",
-  },
-] as const;
+type AuthView = "login" | "activate" | "forgot" | "verify-otp";
+
+type OtpResponse = {
+  message: string;
+  destinationHint: string;
+  expiresInMinutes: number;
+  sent: boolean;
+  cooldownSeconds: number;
+};
+
+function mapAuthError(error: string | undefined, fallback: string) {
+  switch (error) {
+    case "PASSWORD_SETUP_REQUIRED":
+      return "Finish activation or reset your password before signing in.";
+    case "INVALID_CREDENTIALS":
+    case "CredentialsSignin":
+      return "Invalid email or password.";
+    case "OTP_EXPIRED":
+      return "This code has expired. Request a new one to continue.";
+    case "OTP_ALREADY_USED":
+      return "This code has already been used. Request a new one to continue.";
+    case "OTP_ATTEMPTS_EXCEEDED":
+      return "Too many incorrect attempts. Request a new code to continue.";
+    case "OTP_INVALID":
+      return "The code you entered is incorrect.";
+    default:
+      return fallback;
+  }
+}
+
+function getOtpHeading(purpose: OtpPurpose) {
+  if (purpose === "FORGOT_PASSWORD") {
+    return {
+      title: "Check your email",
+      description: "Enter the one-time code we sent so you can create a new password.",
+    };
+  }
+
+  return {
+    title: "Enter your activation code",
+    description: "Use the emailed code to confirm your identity and continue.",
+  };
+}
 
 export function LoginScreen({
-  azureEnabled,
-  localAuthEnabled,
+  defaultView = "login",
 }: {
-  azureEnabled: boolean;
-  localAuthEnabled: boolean;
+  defaultView?: Exclude<AuthView, "verify-otp">;
 }) {
   const router = useRouter();
-  const { data: session, status } = useSession();
-  const [localEmail, setLocalEmail] = useState<string>(LOCAL_DEV_ACCOUNTS[0].email);
-  const [localError, setLocalError] = useState<string | null>(null);
-  const [isLocalSigningIn, setIsLocalSigningIn] = useState(false);
+  const [view, setView] = useState<AuthView>(defaultView);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [otpCode, setOtpCode] = useState("");
+  const [otpPurpose, setOtpPurpose] = useState<OtpPurpose>("FIRST_LOGIN");
+  const [otpMeta, setOtpMeta] = useState<OtpResponse | null>(null);
+  const [pending, setPending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [cooldownSeconds, setCooldownSeconds] = useState(0);
 
   useEffect(() => {
-    if (status !== "authenticated") {
+    if (view !== "verify-otp" || cooldownSeconds <= 0) {
       return;
     }
 
-    if (session?.user.role === "PROGRAM_HEAD") {
-      router.replace("/dashboard");
-      return;
+    const timer = window.setTimeout(() => {
+      setCooldownSeconds((current) => Math.max(0, current - 1));
+    }, 1000);
+
+    return () => window.clearTimeout(timer);
+  }, [view, cooldownSeconds]);
+
+  const otpHeading = useMemo(() => getOtpHeading(otpPurpose), [otpPurpose]);
+
+  async function requestOtp(purpose: OtpPurpose) {
+    setPending(true);
+    setError(null);
+
+    try {
+      const response = await fetch("/api/v1/auth/request-otp", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          email,
+          purpose,
+        }),
+      });
+
+      const payload = (await response.json()) as
+        | { ok: true; data: OtpResponse }
+        | { ok: false; error: { message: string } };
+
+      if (!response.ok || !payload.ok) {
+        throw new Error(
+          payload.ok ? "Unable to send the one-time code." : payload.error.message,
+        );
+      }
+
+      setOtpPurpose(purpose);
+      setOtpMeta(payload.data);
+      setCooldownSeconds(payload.data.cooldownSeconds);
+      setOtpCode("");
+      setView("verify-otp");
+    } catch (requestError) {
+      setError(
+        requestError instanceof Error
+          ? requestError.message
+          : "Unable to send the one-time code.",
+      );
+    } finally {
+      setPending(false);
     }
+  }
 
-    router.replace("/admin");
-  }, [router, session?.user.role, status]);
+  async function handlePasswordSignIn(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setPending(true);
+    setError(null);
 
-  async function runLocalSignIn(email: string) {
-    setLocalError(null);
-    setIsLocalSigningIn(true);
-
-    const result = await signIn(LOCAL_AUTH_PROVIDER_ID, {
+    const result = await signIn(PASSWORD_AUTH_PROVIDER_ID, {
       email,
+      password,
       callbackUrl: "/",
       redirect: false,
     });
 
     if (result?.error) {
-      setLocalError(
-        "The selected local account is not available yet. Run the database seed and try again.",
-      );
-      setIsLocalSigningIn(false);
+      setError(mapAuthError(result.error, "Unable to sign in right now."));
+      setPending(false);
       return;
     }
 
-    startTransition(() => {
-      router.replace(result?.url ?? "/");
-      router.refresh();
+    router.replace(result?.url ?? "/");
+    router.refresh();
+  }
+
+  async function handleOtpVerification(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setPending(true);
+    setError(null);
+
+    const result = await signIn(OTP_AUTH_PROVIDER_ID, {
+      email,
+      code: otpCode,
+      purpose: otpPurpose,
+      callbackUrl: "/auth/set-password",
+      redirect: false,
     });
+
+    if (result?.error) {
+      setError(mapAuthError(result.error, "Unable to verify the code right now."));
+      setPending(false);
+      return;
+    }
+
+    router.replace(result?.url ?? "/auth/set-password");
+    router.refresh();
   }
 
   return (
-    <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(13,148,136,0.22),_transparent_25%),radial-gradient(circle_at_bottom_right,_rgba(37,99,235,0.22),_transparent_28%),linear-gradient(135deg,_#0f172a,_#111827_42%,_#1f2937)] px-4 py-10 text-white">
-      <div className="mx-auto grid min-h-[calc(100vh-80px)] max-w-6xl gap-8 lg:grid-cols-[1.1fr_0.9fr]">
-        <section className="rounded-[36px] border border-white/10 bg-white/6 p-8 backdrop-blur">
-          <p className="text-xs uppercase tracking-[0.3em] text-teal-200">Janaagraha internal portal</p>
-          <h1 className="mt-4 text-5xl font-semibold leading-tight">
-            Directors Timesheet Management System
-          </h1>
-          <p className="mt-6 max-w-2xl text-base leading-7 text-stone-200">
-            The MVP streamlines directors&apos; monthly time capture, reminders,
-            auto-submit on the 5th at 12:00 AM IST, controlled unfreeze requests, and
-            admin reporting through one lean Next.js application.
-          </p>
-          <div className="mt-10 grid gap-4 md:grid-cols-3">
+    <main className="min-h-screen bg-white px-4 py-8 text-stone-950 sm:px-6 lg:px-8">
+      <div className="mx-auto flex min-h-[calc(100vh-64px)] max-w-6xl flex-col justify-center gap-8 lg:grid lg:grid-cols-[1.05fr_0.95fr] lg:items-center">
+        <section className="space-y-6">
+          <div className="inline-flex rounded-full border border-stone-200 bg-stone-50 px-4 py-2 text-xs font-semibold uppercase tracking-[0.24em] text-stone-700">
+            Janaagraha internal portal
+          </div>
+          <div className="space-y-4">
+            <h1 className="max-w-2xl text-4xl font-semibold tracking-tight text-stone-950 sm:text-5xl">
+              Directors Timesheet Management System
+            </h1>
+            <p className="max-w-2xl text-base leading-7 text-stone-600 sm:text-lg">
+              Monthly timesheets, reminders, controlled edit requests, and reporting in
+              one clear workflow built for internal teams.
+            </p>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-3">
             {[
-              "Microsoft Entra ID / Azure AD SSO",
-              "Auto-save with local fallback and retry",
-              "Edit-request approval workflow",
+              "Email and password sign-in",
+              "OTP-based activation and reset",
+              "Responsive workflow for mobile and desktop",
             ].map((item) => (
               <div
                 key={item}
-                className="rounded-[24px] border border-white/10 bg-white/8 p-5 text-sm text-stone-100"
+                className="rounded-3xl border border-stone-200 bg-stone-50 px-5 py-5 text-sm leading-6 text-stone-700"
               >
                 {item}
               </div>
@@ -115,99 +206,217 @@ export function LoginScreen({
           </div>
         </section>
 
-        <section className="space-y-5">
-          {azureEnabled ? (
-            <div className="rounded-[36px] bg-white p-8 text-stone-950 shadow-2xl">
-              <p className="text-xs uppercase tracking-[0.26em] text-stone-500">Secure sign-in</p>
-              <h2 className="mt-3 text-3xl font-semibold">Continue with Microsoft SSO</h2>
-              <p className="mt-4 text-sm leading-6 text-stone-600">
-                Authentication is handled through Microsoft organizational accounts only. No
-                separate username or password is stored in this application.
-              </p>
-              <Button
-                className="mt-8 w-full"
-                onClick={() => signIn("azure-ad", { callbackUrl: "/" })}
-              >
-                Sign in with Microsoft
-              </Button>
-            </div>
-          ) : null}
-
-          {localAuthEnabled ? (
-            <div className="rounded-[36px] border border-amber-200/50 bg-amber-50 p-8 text-stone-950 shadow-2xl">
-              <p className="text-xs uppercase tracking-[0.26em] text-amber-700">
-                Development-only sign-in
-              </p>
-              <h2 className="mt-3 text-3xl font-semibold">Use a seeded local account</h2>
-              <p className="mt-4 text-sm leading-6 text-stone-700">
-                This path exists only for local development when Azure tenant credentials are
-                not available. Production authentication remains Microsoft Entra ID / Azure AD.
-              </p>
-              <form
-                className="mt-6 space-y-3"
-                onSubmit={(event) => {
-                  event.preventDefault();
-                  void runLocalSignIn(localEmail);
+        <Card className="rounded-[32px] border-stone-200 bg-white p-6 sm:p-8">
+          <div className="mb-6 flex flex-wrap gap-2">
+            {[
+              { key: "login", label: "Sign in" },
+              { key: "activate", label: "First-time access" },
+              { key: "forgot", label: "Forgot password" },
+            ].map((item) => (
+              <button
+                key={item.key}
+                type="button"
+                className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
+                  view === item.key
+                    ? "bg-amber-300 text-stone-950"
+                    : "bg-stone-100 text-stone-600 hover:bg-stone-200"
+                }`}
+                onClick={() => {
+                  setError(null);
+                  setView(item.key as AuthView);
                 }}
               >
-                <label className="block text-sm font-medium text-stone-700" htmlFor="local-email">
-                  Seeded user email
-                </label>
+                {item.label}
+              </button>
+            ))}
+          </div>
+
+          {view === "login" ? (
+            <form className="space-y-4" onSubmit={handlePasswordSignIn}>
+              <div className="space-y-2">
+                <h2 className="text-2xl font-semibold text-stone-950">Sign in</h2>
+                <p className="text-sm leading-6 text-stone-600">
+                  Use your Janaagraha email address and password to continue.
+                </p>
+              </div>
+              <label className="block text-sm font-medium text-stone-700">
+                Email
                 <Input
-                  id="local-email"
+                  className="mt-2"
                   type="email"
-                  value={localEmail}
-                  onChange={(event) => setLocalEmail(event.target.value)}
-                  placeholder="anita.director@janaagraha.org"
-                  autoComplete="email"
+                  value={email}
+                  onChange={(event) => setEmail(event.target.value)}
+                  autoComplete="username"
+                  placeholder="name@janaagraha.org"
+                  required
                 />
-                <Button className="w-full" disabled={isLocalSigningIn} type="submit">
-                  {isLocalSigningIn ? "Signing in..." : "Sign in with local development account"}
-                </Button>
-              </form>
-              {localError ? (
-                <p className="mt-3 rounded-2xl bg-rose-100 px-4 py-3 text-sm text-rose-700">
-                  {localError}
+              </label>
+              <label className="block text-sm font-medium text-stone-700">
+                Password
+                <Input
+                  className="mt-2"
+                  type="password"
+                  value={password}
+                  onChange={(event) => setPassword(event.target.value)}
+                  autoComplete="current-password"
+                  placeholder="Enter your password"
+                  required
+                />
+              </label>
+              {error ? (
+                <p className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+                  {error}
                 </p>
               ) : null}
-              <div className="mt-6 grid gap-3">
-                {LOCAL_DEV_ACCOUNTS.map((account) => (
-                  <button
-                    key={account.email}
-                    type="button"
-                    className="flex items-center justify-between rounded-[22px] border border-amber-200 bg-white px-4 py-4 text-left transition hover:border-amber-400 hover:bg-amber-100/40"
-                    onClick={() => {
-                      setLocalEmail(account.email);
-                      void runLocalSignIn(account.email);
-                    }}
-                    disabled={isLocalSigningIn}
-                  >
-                    <span>
-                      <span className="block text-sm font-semibold text-stone-950">
-                        {account.label}
-                      </span>
-                      <span className="block text-xs uppercase tracking-[0.2em] text-stone-500">
-                        {account.roleLabel}
-                      </span>
-                    </span>
-                    <span className="text-sm text-stone-600">{account.email}</span>
-                  </button>
-                ))}
+              <Button className="w-full" type="submit" disabled={pending}>
+                {pending ? "Signing in..." : "Sign in"}
+              </Button>
+              <div className="flex flex-col gap-3 text-sm text-stone-600 sm:flex-row sm:items-center sm:justify-between">
+                <button
+                  type="button"
+                  className="text-left font-medium text-stone-900 underline underline-offset-4"
+                  onClick={() => {
+                    setError(null);
+                    setView("forgot");
+                  }}
+                >
+                  Forgot password?
+                </button>
+                <button
+                  type="button"
+                  className="text-left font-medium text-stone-900 underline underline-offset-4"
+                  onClick={() => {
+                    setError(null);
+                    setView("activate");
+                  }}
+                >
+                  First-time access
+                </button>
               </div>
-            </div>
+            </form>
           ) : null}
 
-          {!azureEnabled && !localAuthEnabled ? (
-            <div className="rounded-[36px] bg-white p-8 text-stone-950 shadow-2xl">
-              <p className="text-xs uppercase tracking-[0.26em] text-stone-500">Configuration required</p>
-              <h2 className="mt-3 text-3xl font-semibold">Authentication is not configured yet</h2>
-              <p className="mt-4 text-sm leading-6 text-stone-600">
-                Add Azure AD credentials for production-like sign-in, or enable local
-                development auth in `.env.local` to exercise the seeded workflows.
-              </p>
-            </div>
+          {view === "activate" || view === "forgot" ? (
+            <form
+              className="space-y-4"
+              onSubmit={(event) => {
+                event.preventDefault();
+                void requestOtp(view === "forgot" ? "FORGOT_PASSWORD" : "FIRST_LOGIN");
+              }}
+            >
+              <div className="space-y-2">
+                <h2 className="text-2xl font-semibold text-stone-950">
+                  {view === "forgot" ? "Reset your password" : "Activate your access"}
+                </h2>
+                <p className="text-sm leading-6 text-stone-600">
+                  {view === "forgot"
+                    ? "Enter your work email and we’ll send a one-time code so you can create a new password."
+                    : "Enter your work email and we’ll send a one-time code to help you create your password."}
+                </p>
+              </div>
+              <label className="block text-sm font-medium text-stone-700">
+                Work email
+                <Input
+                  className="mt-2"
+                  type="email"
+                  value={email}
+                  onChange={(event) => setEmail(event.target.value)}
+                  autoComplete="email"
+                  placeholder="name@janaagraha.org"
+                  required
+                />
+              </label>
+              {error ? (
+                <p className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+                  {error}
+                </p>
+              ) : null}
+              <Button className="w-full" type="submit" disabled={pending}>
+                {pending ? "Sending code..." : "Send one-time code"}
+              </Button>
+              <button
+                type="button"
+                className="text-sm font-medium text-stone-700 underline underline-offset-4"
+                onClick={() => {
+                  setError(null);
+                  setView("login");
+                }}
+              >
+                Back to sign in
+              </button>
+            </form>
           ) : null}
-        </section>
+
+          {view === "verify-otp" ? (
+            <form className="space-y-4" onSubmit={handleOtpVerification}>
+              <div className="space-y-2">
+                <h2 className="text-2xl font-semibold text-stone-950">
+                  {otpHeading.title}
+                </h2>
+                <p className="text-sm leading-6 text-stone-600">
+                  {otpHeading.description}
+                </p>
+              </div>
+              {otpMeta ? (
+                <div className="rounded-2xl border border-stone-200 bg-stone-50 px-4 py-4 text-sm text-stone-700">
+                  <p>{otpMeta.message}</p>
+                  <p className="mt-1 font-medium text-stone-950">
+                    Destination: {otpMeta.destinationHint}
+                  </p>
+                  <p className="mt-1 text-stone-600">
+                    The code expires in {otpMeta.expiresInMinutes} minutes.
+                  </p>
+                </div>
+              ) : null}
+              <label className="block text-sm font-medium text-stone-700">
+                One-time code
+                <Input
+                  className="mt-2 text-center text-lg tracking-[0.36em]"
+                  type="text"
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  maxLength={6}
+                  value={otpCode}
+                  onChange={(event) =>
+                    setOtpCode(event.target.value.replace(/\D/g, "").slice(0, 6))
+                  }
+                  placeholder="123456"
+                  required
+                />
+              </label>
+              {error ? (
+                <p className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+                  {error}
+                </p>
+              ) : null}
+              <Button className="w-full" type="submit" disabled={pending || otpCode.length !== 6}>
+                {pending ? "Verifying..." : "Verify code"}
+              </Button>
+              <div className="flex flex-col gap-3 text-sm text-stone-600 sm:flex-row sm:items-center sm:justify-between">
+                <button
+                  type="button"
+                  className="font-medium text-stone-900 underline underline-offset-4 disabled:text-stone-400"
+                  onClick={() => {
+                    void requestOtp(otpPurpose);
+                  }}
+                  disabled={pending || cooldownSeconds > 0}
+                >
+                  {cooldownSeconds > 0 ? `Resend in ${cooldownSeconds}s` : "Resend code"}
+                </button>
+                <button
+                  type="button"
+                  className="font-medium text-stone-700 underline underline-offset-4"
+                  onClick={() => {
+                    setError(null);
+                    setView(otpPurpose === "FORGOT_PASSWORD" ? "forgot" : "activate");
+                  }}
+                >
+                  Use a different email
+                </button>
+              </div>
+            </form>
+          ) : null}
+        </Card>
       </div>
     </main>
   );

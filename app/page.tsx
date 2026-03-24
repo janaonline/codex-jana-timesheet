@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 
-import { getAppSession } from "@/lib/auth";
+import { getAppSession, getHomePathForRole } from "@/lib/auth";
 
 export default async function HomePage() {
   const session = await getAppSession();
@@ -9,9 +9,9 @@ export default async function HomePage() {
     redirect("/login");
   }
 
-  if (session.user.role === "PROGRAM_HEAD") {
-    redirect("/dashboard");
+  if (session.user.passwordSetupRequired) {
+    redirect("/auth/set-password");
   }
 
-  redirect("/admin");
+  redirect(getHomePathForRole(session.user.role));
 }

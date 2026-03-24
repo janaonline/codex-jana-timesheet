@@ -5,7 +5,7 @@ import { generateReportExport } from "@/services/export-service";
 
 export async function POST(request: Request) {
   return handleApiRoute(request, {
-    roles: ["ADMIN", "OPERATIONS"],
+    permission: "reports:export:admin",
     requireOriginCheck: true,
     actionName: "export_report",
     handler: async () => {

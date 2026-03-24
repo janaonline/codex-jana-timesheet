@@ -6,7 +6,11 @@ import {
   type UserRole,
 } from "@/lib/constants";
 import { env } from "@/lib/env";
-import { DEFAULT_EMAIL_TEMPLATE_CONTENT } from "@/emails/templates";
+import {
+  DEFAULT_EMAIL_TEMPLATE_CONTENT,
+  type EmailTemplateContent,
+  type EmailTemplateKey,
+} from "@/emails/templates";
 import { normalizeRoleAccess, type RoleAccessMatrix } from "@/lib/rbac";
 import { safeJsonParse } from "@/lib/utils";
 
@@ -16,7 +20,10 @@ export type ReminderConfiguration = {
   nextMonthPendingDays: number[];
 };
 
-export type EmailTemplateConfiguration = typeof DEFAULT_EMAIL_TEMPLATE_CONTENT;
+export type EmailTemplateConfiguration = Record<
+  EmailTemplateKey,
+  EmailTemplateContent
+>;
 
 export type SystemConfigurationView = {
   id: string;
@@ -76,10 +83,21 @@ function normalizeEmailTemplates(raw: unknown): EmailTemplateConfiguration {
     return DEFAULT_CONFIGURATION.emailTemplates;
   }
 
-  return {
-    ...DEFAULT_CONFIGURATION.emailTemplates,
-    ...(raw as EmailTemplateConfiguration),
-  };
+  const incoming = raw as Partial<EmailTemplateConfiguration>;
+
+  return Object.fromEntries(
+    Object.entries(DEFAULT_CONFIGURATION.emailTemplates).map(([key, template]) => {
+      const nextTemplate = incoming[key as EmailTemplateKey];
+      return [
+        key,
+        {
+          subject: nextTemplate?.subject ?? template.subject,
+          html: nextTemplate?.html ?? template.html,
+          text: nextTemplate?.text ?? template.text,
+        },
+      ];
+    }),
+  ) as EmailTemplateConfiguration;
 }
 
 export async function getSystemConfiguration() {

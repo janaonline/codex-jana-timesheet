@@ -1,3 +1,4 @@
+import { AUTH_MODES, type AuthMode } from "@/lib/constants";
 import { safeJsonParse } from "@/lib/utils";
 
 const DEFAULT_DATABASE_URL =
@@ -17,6 +18,11 @@ function getNumber(name: string, fallback: number) {
   return Number.isFinite(parsed) ? parsed : fallback;
 }
 
+function getAuthMode(name: string, fallback: AuthMode) {
+  const value = process.env[name];
+  return AUTH_MODES.includes(value as AuthMode) ? (value as AuthMode) : fallback;
+}
+
 export const env = {
   nodeEnv: getEnv("NODE_ENV", "development"),
   databaseUrl: getEnv("DATABASE_URL", DEFAULT_DATABASE_URL),
@@ -25,6 +31,7 @@ export const env = {
     "NEXTAUTH_SECRET",
     "replace-with-a-long-random-secret",
   ),
+  authMode: getAuthMode("AUTH_MODE", "password"),
   azureAdClientId: getEnv("AZURE_AD_CLIENT_ID"),
   azureAdClientSecret: getEnv("AZURE_AD_CLIENT_SECRET"),
   azureAdTenantId: getEnv("AZURE_AD_TENANT_ID"),
@@ -40,7 +47,6 @@ export const env = {
   appBaseUrl: getEnv("APP_BASE_URL", "http://localhost:3000"),
   cronJobSharedSecret: getEnv("CRON_JOB_SHARED_SECRET", "dev-job-secret"),
   enableScheduler: getBoolean("ENABLE_SCHEDULER", false),
-  localAuthEnabled: getBoolean("LOCAL_AUTH_ENABLED", false),
   supportContactEmail: getEnv(
     "SUPPORT_CONTACT_EMAIL",
     "support@janaagraha.org",
@@ -58,13 +64,12 @@ export function hasAzureSsoConfig() {
   );
 }
 
-export function isLocalDevelopmentAuthEnabled() {
-  return (
-    env.localAuthEnabled &&
-    (env.nodeEnv !== "production" ||
-      env.nextAuthUrl.includes("localhost") ||
-      env.nextAuthUrl.includes("127.0.0.1"))
-  );
+export function isPasswordAuthEnabled() {
+  return env.authMode === "password";
+}
+
+export function isAzureSsoEnabled() {
+  return env.authMode === "azuread" && hasAzureSsoConfig();
 }
 
 export function hasSmtpConfig() {

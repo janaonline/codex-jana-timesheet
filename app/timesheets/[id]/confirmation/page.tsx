@@ -22,6 +22,7 @@ export default async function ConfirmationPage({
   return (
     <PortalShell
       role={session.user.role}
+      permissions={session.user.permissions}
       userName={session.user.name ?? session.user.email ?? "User"}
       currentPath="/dashboard"
     >

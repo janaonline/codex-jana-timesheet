@@ -3,12 +3,21 @@ import { getServerSession, type NextAuthOptions, type Session } from "next-auth"
 import AzureADProvider from "next-auth/providers/azure-ad";
 import CredentialsProvider from "next-auth/providers/credentials";
 
-import { env, hasAzureSsoConfig, isLocalDevelopmentAuthEnabled } from "@/lib/env";
-import { AppError } from "@/lib/errors";
+import {
+  AZURE_AUTH_PROVIDER_ID,
+  OTP_AUTH_PROVIDER_ID,
+  PASSWORD_AUTH_PROVIDER_ID,
+  type Permission,
+  type UserRole,
+} from "@/lib/constants";
+import { isAppError, AppError } from "@/lib/errors";
+import { env, hasAzureSsoConfig, isAzureSsoEnabled, isPasswordAuthEnabled } from "@/lib/env";
+import { requiresPasswordSetup } from "@/lib/password-auth";
 import { prisma } from "@/lib/prisma";
-import { LOCAL_AUTH_PROVIDER_ID, type UserRole } from "@/lib/constants";
-import { getSystemConfiguration } from "@/services/configuration-service";
+import { getPermissionsForRole } from "@/lib/rbac";
 import { safeWriteAuditLog } from "@/services/audit-service";
+import { authorizeOtpUser, authorizePasswordUser } from "@/services/auth-service";
+import { getSystemConfiguration } from "@/services/configuration-service";
 
 type AzureProfile = {
   oid?: string;
@@ -18,13 +27,54 @@ type AzureProfile = {
   groups?: string[];
 };
 
-type LocalDevelopmentUser = {
-  id: string;
-  email: string;
-  name: string;
-  role: UserRole;
-  azureGroups: string[];
-};
+type AppSessionRequirement =
+  | UserRole[]
+  | {
+      roles?: UserRole[];
+      permission?: Permission;
+      allowPendingPasswordSetup?: boolean;
+    };
+
+function normalizeRequirement(requirement?: AppSessionRequirement) {
+  if (Array.isArray(requirement)) {
+    return {
+      roles: requirement,
+      permission: undefined,
+      allowPendingPasswordSetup: false,
+    };
+  }
+
+  return {
+    roles: requirement?.roles,
+    permission: requirement?.permission,
+    allowPendingPasswordSetup: requirement?.allowPendingPasswordSetup ?? false,
+  };
+}
+
+function getRequesterKey(request: unknown) {
+  if (!request || typeof request !== "object" || !("headers" in request)) {
+    return "next-auth";
+  }
+
+  const headers = (request as { headers?: Record<string, string | string[] | undefined> })
+    .headers;
+  const forwarded = headers?.["x-forwarded-for"];
+  const realIp = headers?.["x-real-ip"];
+
+  if (typeof forwarded === "string" && forwarded) {
+    return forwarded.split(",")[0].trim();
+  }
+
+  if (Array.isArray(forwarded) && forwarded[0]) {
+    return forwarded[0];
+  }
+
+  if (typeof realIp === "string" && realIp) {
+    return realIp;
+  }
+
+  return "next-auth";
+}
 
 async function resolveRole(email: string, groups: string[]) {
   const existingUser = await prisma.user.findUnique({
@@ -68,7 +118,6 @@ async function syncUserProfile(profile: AzureProfile) {
     await safeWriteAuditLog({
       action: "AUTHORIZATION_FAILED",
       entityType: "AUTH",
-      subjectUserId: undefined,
       metadata: {
         email,
         reason:
@@ -86,6 +135,7 @@ async function syncUserProfile(profile: AzureProfile) {
       azureGroups: groups,
       role,
       lastLoginAt: new Date(),
+      emailVerifiedAt: new Date(),
     },
     create: {
       email,
@@ -94,120 +144,104 @@ async function syncUserProfile(profile: AzureProfile) {
       azureGroups: groups,
       role,
       lastLoginAt: new Date(),
+      emailVerifiedAt: new Date(),
     },
   });
 }
 
-async function authorizeLocalDevelopmentUser(email: string | undefined) {
-  const normalizedEmail = email?.trim().toLowerCase();
-
-  if (!normalizedEmail) {
-    await safeWriteAuditLog({
-      action: "AUTHENTICATION_FAILED",
-      entityType: "AUTH",
-      metadata: {
-        provider: "local-dev",
-        reason: "Local development sign-in was attempted without an email address.",
+function buildPasswordProviders(): NextAuthOptions["providers"] {
+  return [
+    CredentialsProvider({
+      id: PASSWORD_AUTH_PROVIDER_ID,
+      name: "Email and password",
+      credentials: {
+        email: {
+          label: "Email",
+          type: "email",
+          placeholder: "name@janaagraha.org",
+        },
+        password: {
+          label: "Password",
+          type: "password",
+        },
       },
-    });
-    return null;
-  }
+      async authorize(credentials) {
+        try {
+          if (!credentials?.email || !credentials.password) {
+            throw new AppError("INVALID_CREDENTIALS", 401, "Invalid email or password.");
+          }
 
-  const user = await prisma.user.findUnique({
-    where: { email: normalizedEmail },
-    select: {
-      id: true,
-      email: true,
-      name: true,
-      role: true,
-      isActive: true,
-      azureGroups: true,
-    },
-  });
-
-  if (!user || !user.isActive) {
-    await safeWriteAuditLog({
-      action: "AUTHENTICATION_FAILED",
-      entityType: "AUTH",
-      metadata: {
-        provider: "local-dev",
-        email: normalizedEmail,
-        reason: "Local development sign-in was attempted for an inactive or unknown user.",
+          return await authorizePasswordUser(credentials.email, credentials.password);
+        } catch (error) {
+          throw new Error(
+            isAppError(error) ? error.code : "INVALID_CREDENTIALS",
+          );
+        }
       },
-    });
-    return null;
-  }
+    }),
+    CredentialsProvider({
+      id: OTP_AUTH_PROVIDER_ID,
+      name: "One-time code",
+      credentials: {
+        email: {
+          label: "Email",
+          type: "email",
+        },
+        code: {
+          label: "Code",
+          type: "text",
+        },
+        purpose: {
+          label: "Purpose",
+          type: "text",
+        },
+      },
+      async authorize(credentials, request) {
+        try {
+          if (!credentials?.email || !credentials.code || !credentials.purpose) {
+            throw new AppError("OTP_INVALID", 401, "The code is invalid or has expired.");
+          }
 
-  await prisma.user.update({
-    where: { id: user.id },
-    data: {
-      lastLoginAt: new Date(),
-    },
-  });
-
-  await safeWriteAuditLog({
-    action: "AUTHENTICATION_SUCCEEDED",
-    entityType: "AUTH",
-    actorUserId: user.id,
-    subjectUserId: user.id,
-    metadata: {
-      provider: "local-dev",
-    },
-  });
-
-  return {
-    id: user.id,
-    email: user.email,
-    name: user.name,
-    role: user.role,
-    azureGroups: Array.isArray(user.azureGroups)
-      ? (user.azureGroups as string[])
-      : [],
-  } satisfies LocalDevelopmentUser;
+          return await authorizeOtpUser({
+            email: credentials.email,
+            code: credentials.code,
+            purpose: credentials.purpose as "FIRST_LOGIN" | "FORGOT_PASSWORD" | "ACCOUNT_ACTIVATION",
+            requesterKey: getRequesterKey(request),
+          });
+        } catch (error) {
+          throw new Error(isAppError(error) ? error.code : "OTP_INVALID");
+        }
+      },
+    }),
+  ];
 }
 
 function buildProviders(): NextAuthOptions["providers"] {
-  const providers: NextAuthOptions["providers"] = [];
+  if (isPasswordAuthEnabled()) {
+    return buildPasswordProviders();
+  }
 
-  if (hasAzureSsoConfig()) {
-    providers.push(
+  if (isAzureSsoEnabled()) {
+    return [
       AzureADProvider({
         clientId: env.azureAdClientId,
         clientSecret: env.azureAdClientSecret,
         tenantId: env.azureAdTenantId,
       }),
-    );
+    ];
   }
 
-  if (isLocalDevelopmentAuthEnabled()) {
-    providers.push(
-      CredentialsProvider({
-        name: "Local Development Sign-In",
-        credentials: {
-          email: {
-            label: "Email",
-            type: "email",
-            placeholder: "anita.director@janaagraha.org",
-          },
-        },
-        async authorize(credentials) {
-          return authorizeLocalDevelopmentUser(credentials?.email);
-        },
+  if (hasAzureSsoConfig()) {
+    return [
+      AzureADProvider({
+        clientId: env.azureAdClientId,
+        clientSecret: env.azureAdClientSecret,
+        tenantId: env.azureAdTenantId,
       }),
-    );
+    ];
   }
 
-  if (providers.length > 0) {
-    return providers;
-  }
-
-  return [
-    AzureADProvider({
-      clientId: env.azureAdClientId || "replace-with-azure-client-id",
-      clientSecret: env.azureAdClientSecret || "replace-with-azure-client-secret",
-      tenantId: env.azureAdTenantId || "replace-with-azure-tenant-id",
-    }),
-  ];
+  return buildPasswordProviders();
 }
 
 export const authOptions: NextAuthOptions = {
@@ -222,22 +256,30 @@ export const authOptions: NextAuthOptions = {
   },
   callbacks: {
     async signIn({ account, profile, user }) {
-      if (account?.provider === LOCAL_AUTH_PROVIDER_ID) {
+      if (
+        account?.provider === PASSWORD_AUTH_PROVIDER_ID ||
+        account?.provider === OTP_AUTH_PROVIDER_ID
+      ) {
         return Boolean(user);
       }
 
-      const syncedUser = await syncUserProfile(profile as AzureProfile);
+      if (account?.provider === AZURE_AUTH_PROVIDER_ID) {
+        const syncedUser = await syncUserProfile(profile as AzureProfile);
 
-      if (!syncedUser) {
-        return false;
+        if (!syncedUser) {
+          return false;
+        }
+
+        await safeWriteAuditLog({
+          action: "AUTHENTICATION_SUCCEEDED",
+          entityType: "AUTH",
+          actorUserId: syncedUser.id,
+          subjectUserId: syncedUser.id,
+          metadata: {
+            provider: AZURE_AUTH_PROVIDER_ID,
+          },
+        });
       }
-
-      await safeWriteAuditLog({
-        action: "AUTHENTICATION_SUCCEEDED",
-        entityType: "AUTH",
-        actorUserId: syncedUser.id,
-        subjectUserId: syncedUser.id,
-      });
 
       return true;
     },
@@ -261,32 +303,53 @@ export const authOptions: NextAuthOptions = {
         token.email = user.email;
         token.name = user.name;
         token.role = user.role;
+        token.passwordSetupRequired = Boolean(user.passwordSetupRequired);
+        token.permissions = Array.isArray(user.permissions)
+          ? user.permissions
+          : token.permissions ?? [];
         token.azureGroups = Array.isArray(user.azureGroups)
           ? user.azureGroups
           : token.azureGroups ?? [];
       }
 
-      const email =
-        typeof token.email === "string" ? token.email : undefined;
+      const email = typeof token.email === "string" ? token.email : undefined;
+      const role = typeof token.role === "string" ? (token.role as UserRole) : undefined;
 
       if (email) {
-        const user = await prisma.user.findUnique({
+        const currentUser = await prisma.user.findUnique({
           where: { email },
-          select: { id: true, role: true, azureGroups: true },
+          select: {
+            id: true,
+            role: true,
+            azureGroups: true,
+            passwordHash: true,
+            passwordResetRequired: true,
+          },
         });
 
-        if (user) {
-          token.sub = user.id;
-          token.role = user.role;
-          token.azureGroups = Array.isArray(user.azureGroups)
-            ? (user.azureGroups as string[])
+        if (currentUser) {
+          token.sub = currentUser.id;
+          token.role = currentUser.role;
+          token.azureGroups = Array.isArray(currentUser.azureGroups)
+            ? (currentUser.azureGroups as string[])
             : [];
+          token.passwordSetupRequired = requiresPasswordSetup({
+            passwordHash: currentUser.passwordHash,
+            passwordResetRequired: currentUser.passwordResetRequired,
+          });
         }
       }
 
       if (profile) {
         const azureProfile = profile as AzureProfile;
         token.azureGroups = azureProfile.groups ?? token.azureGroups ?? [];
+      }
+
+      const resolvedRole =
+        typeof token.role === "string" ? (token.role as UserRole) : role;
+
+      if (resolvedRole) {
+        token.permissions = getPermissionsForRole(resolvedRole, config.roleAccess);
       }
 
       return token;
@@ -296,6 +359,10 @@ export const authOptions: NextAuthOptions = {
         session.user.id = token.sub;
         session.user.role = token.role;
         session.user.lastActivityAt = token.lastActivityAt ?? Date.now();
+        session.user.passwordSetupRequired = Boolean(token.passwordSetupRequired);
+        session.user.permissions = Array.isArray(token.permissions)
+          ? token.permissions
+          : [];
         session.user.email =
           typeof token.email === "string" ? token.email : session.user.email;
         session.user.name =
@@ -313,35 +380,68 @@ export async function getAppSession() {
   return getServerSession(authOptions);
 }
 
+export function getHomePathForRole(role: UserRole) {
+  return role === "PROGRAM_HEAD" ? "/dashboard" : "/admin";
+}
+
 function assertSession(
   session: Session | null,
-  allowedRoles?: UserRole[],
+  requirement?: AppSessionRequirement,
 ): asserts session is Session {
+  const normalized = normalizeRequirement(requirement);
+
   if (!session?.user || session.expiresByInactivity) {
     throw new AppError("UNAUTHORIZED", 401, "Authentication is required.");
   }
 
-  if (allowedRoles && !allowedRoles.includes(session.user.role)) {
+  if (session.user.passwordSetupRequired && !normalized.allowPendingPasswordSetup) {
+    throw new AppError(
+      "PASSWORD_SETUP_REQUIRED",
+      403,
+      "Set your password before continuing.",
+    );
+  }
+
+  if (normalized.roles && !normalized.roles.includes(session.user.role)) {
+    throw new AppError("FORBIDDEN", 403, "You do not have access to this route.");
+  }
+
+  if (
+    normalized.permission &&
+    !session.user.permissions.includes(normalized.permission)
+  ) {
     throw new AppError("FORBIDDEN", 403, "You do not have access to this route.");
   }
 }
 
-export async function requireAppSession(allowedRoles?: UserRole[]) {
+export async function requireAppSession(requirement?: AppSessionRequirement) {
   const session = await getAppSession();
 
-  if (!session?.user || session.expiresByInactivity) {
-    redirect("/login");
-  }
+  try {
+    assertSession(session, requirement);
+  } catch (error) {
+    if (isAppError(error)) {
+      if (error.code === "UNAUTHORIZED") {
+        redirect("/login");
+      }
 
-  if (allowedRoles && !allowedRoles.includes(session.user.role)) {
-    redirect("/forbidden");
+      if (error.code === "PASSWORD_SETUP_REQUIRED") {
+        redirect("/auth/set-password");
+      }
+
+      if (error.code === "FORBIDDEN") {
+        redirect("/forbidden");
+      }
+    }
+
+    throw error;
   }
 
   return session;
 }
 
-export async function requireApiSession(allowedRoles?: UserRole[]) {
+export async function requireApiSession(requirement?: AppSessionRequirement) {
   const session = await getAppSession();
-  assertSession(session, allowedRoles);
+  assertSession(session, requirement);
   return session;
 }

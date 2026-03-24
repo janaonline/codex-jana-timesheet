@@ -1,7 +1,7 @@
 import { addMonths, lastDayOfMonth } from "date-fns";
 import { formatInTimeZone, fromZonedTime, toZonedTime } from "date-fns-tz";
 
-import { IST_TIMEZONE, ReminderKind } from "@/lib/constants";
+import { DEFAULT_REMINDER_SCHEDULE, IST_TIMEZONE, ReminderKind } from "@/lib/constants";
 import { pad } from "@/lib/utils";
 
 export function getMonthKey(reference = new Date()) {
@@ -153,25 +153,37 @@ export function getDeadlineMetadata(monthKey: string) {
 
 export function getReminderRun(
   reference = new Date(),
+  reminderDays: {
+    currentMonthDraftDays: readonly number[];
+    currentMonthSubmitDay: "last-day";
+    nextMonthPendingDays: readonly number[];
+  } = DEFAULT_REMINDER_SCHEDULE,
 ): { kind: ReminderKind; targetMonthKey: string } | null {
   const parts = getIstParts(reference);
   const currentMonthKey = getMonthKey(reference);
   const previousMonthKey = getPreviousMonthKey(reference);
   const lastDay = Number(getMonthEnd(currentMonthKey).slice(-2));
+  const [firstDraftReminderDay, secondDraftReminderDay] =
+    reminderDays.currentMonthDraftDays.length > 0
+      ? reminderDays.currentMonthDraftDays
+      : DEFAULT_REMINDER_SCHEDULE.currentMonthDraftDays;
+  const nextMonthReminderDay =
+    reminderDays.nextMonthPendingDays.find((day) => day !== 5) ??
+    DEFAULT_REMINDER_SCHEDULE.nextMonthPendingDays[0];
 
-  if (parts.day === 25) {
+  if (parts.day === firstDraftReminderDay) {
     return { kind: "REMINDER_25TH", targetMonthKey: currentMonthKey };
   }
 
-  if (parts.day === 28) {
+  if (parts.day === secondDraftReminderDay) {
     return { kind: "REMINDER_28TH", targetMonthKey: currentMonthKey };
   }
 
-  if (parts.day === lastDay) {
+  if (reminderDays.currentMonthSubmitDay === "last-day" && parts.day === lastDay) {
     return { kind: "REMINDER_LAST_DAY", targetMonthKey: currentMonthKey };
   }
 
-  if (parts.day === 3) {
+  if (parts.day === nextMonthReminderDay) {
     return { kind: "REMINDER_3RD", targetMonthKey: previousMonthKey };
   }
 

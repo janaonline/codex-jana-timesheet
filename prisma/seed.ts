@@ -1,9 +1,11 @@
 import { PrismaClient } from "@prisma/client";
 
+import { hashPassword } from "../lib/password-auth";
 import { getMonthStart, getPreviousMonthKey, getMonthKey } from "../lib/time";
 import { calculateAssignedHours } from "../lib/timesheet-calculations";
 
 const prisma = new PrismaClient();
+const SEEDED_PASSWORD = "Jana@Timesheet2026";
 
 async function upsertProjects() {
   const projects = [
@@ -36,16 +38,28 @@ async function upsertProjects() {
 }
 
 async function upsertUsers() {
+  const seededPasswordHash = await hashPassword(SEEDED_PASSWORD);
+  const passwordSetAt = new Date("2026-03-01T09:00:00+05:30");
+  const emailVerifiedAt = new Date("2026-03-01T09:00:00+05:30");
+
   const girija = await prisma.user.upsert({
     where: { email: "girija.admin@janaagraha.org" },
     update: {
       name: "Girija Admin",
       role: "ADMIN",
+      passwordHash: seededPasswordHash,
+      passwordSetAt,
+      passwordResetRequired: false,
+      emailVerifiedAt,
     },
     create: {
       email: "girija.admin@janaagraha.org",
       name: "Girija Admin",
       role: "ADMIN",
+      passwordHash: seededPasswordHash,
+      passwordSetAt,
+      passwordResetRequired: false,
+      emailVerifiedAt,
     },
   });
 
@@ -54,11 +68,19 @@ async function upsertUsers() {
     update: {
       name: "Kishora Admin",
       role: "ADMIN",
+      passwordHash: seededPasswordHash,
+      passwordSetAt,
+      passwordResetRequired: false,
+      emailVerifiedAt,
     },
     create: {
       email: "kishora.admin@janaagraha.org",
       name: "Kishora Admin",
       role: "ADMIN",
+      passwordHash: seededPasswordHash,
+      passwordSetAt,
+      passwordResetRequired: false,
+      emailVerifiedAt,
     },
   });
 
@@ -67,11 +89,19 @@ async function upsertUsers() {
     update: {
       name: "Mira Operations",
       role: "OPERATIONS",
+      passwordHash: seededPasswordHash,
+      passwordSetAt,
+      passwordResetRequired: false,
+      emailVerifiedAt,
     },
     create: {
       email: "mira.operations@janaagraha.org",
       name: "Mira Operations",
       role: "OPERATIONS",
+      passwordHash: seededPasswordHash,
+      passwordSetAt,
+      passwordResetRequired: false,
+      emailVerifiedAt,
     },
   });
 
@@ -82,6 +112,10 @@ async function upsertUsers() {
       role: "PROGRAM_HEAD",
       approverUserId: girija.id,
       joinDate: new Date("2025-01-01T00:00:00+05:30"),
+      passwordHash: seededPasswordHash,
+      passwordSetAt,
+      passwordResetRequired: false,
+      emailVerifiedAt,
     },
     create: {
       email: "anita.director@janaagraha.org",
@@ -89,6 +123,10 @@ async function upsertUsers() {
       role: "PROGRAM_HEAD",
       approverUserId: girija.id,
       joinDate: new Date("2025-01-01T00:00:00+05:30"),
+      passwordHash: seededPasswordHash,
+      passwordSetAt,
+      passwordResetRequired: false,
+      emailVerifiedAt,
     },
   });
 
@@ -99,6 +137,10 @@ async function upsertUsers() {
       role: "PROGRAM_HEAD",
       approverUserId: girija.id,
       joinDate: new Date("2025-07-01T00:00:00+05:30"),
+      passwordHash: null,
+      passwordSetAt: null,
+      passwordResetRequired: false,
+      emailVerifiedAt: null,
     },
     create: {
       email: "ravi.director@janaagraha.org",
@@ -106,10 +148,14 @@ async function upsertUsers() {
       role: "PROGRAM_HEAD",
       approverUserId: girija.id,
       joinDate: new Date("2025-07-01T00:00:00+05:30"),
+      passwordHash: null,
+      passwordSetAt: null,
+      passwordResetRequired: false,
+      emailVerifiedAt: null,
     },
   });
 
-  return { girija, kishora, operations, anita, ravi };
+  return { girija, kishora, operations, anita, ravi, seededPassword: SEEDED_PASSWORD };
 }
 
 function buildDailyEntries(
@@ -243,18 +289,31 @@ async function main() {
   const projects = await upsertProjects();
   const users = await upsertUsers();
 
+  await prisma.authOtpChallenge.deleteMany();
+
   await prisma.systemConfiguration.upsert({
     where: { id: "default" },
     update: {
+      reminderDays: {
+        currentMonthDraftDays: [25, 28],
+        currentMonthSubmitDay: "last-day",
+        nextMonthPendingDays: [3],
+      },
+      autoSubmitDay: 5,
+      completionThreshold: 100,
+      inactivityTimeoutMins: 30,
       supportContactEmail: "support@janaagraha.org",
       holidayCalendar: [],
+      roleAccess: {},
+      emailTemplates: {},
+      notifyAdminOnAutoSubmit: true,
     },
     create: {
       id: "default",
       reminderDays: {
         currentMonthDraftDays: [25, 28],
         currentMonthSubmitDay: "last-day",
-        nextMonthPendingDays: [3, 5],
+        nextMonthPendingDays: [3],
       },
       autoSubmitDay: 5,
       completionThreshold: 100,
@@ -367,6 +426,9 @@ async function main() {
       },
     ],
   });
+
+  console.log(`Seeded password for Anita, Girija, Kishora, and Mira: ${users.seededPassword}`);
+  console.log("Ravi Director is left without a password for first-time activation testing.");
 }
 
 main()

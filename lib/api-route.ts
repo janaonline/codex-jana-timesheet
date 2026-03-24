@@ -4,6 +4,7 @@ import { requireApiSession } from "@/lib/auth";
 import {
   DEFAULT_RATE_LIMIT,
   DEFAULT_RATE_LIMIT_WINDOW_MS,
+  type Permission,
   type UserRole,
 } from "@/lib/constants";
 import { env } from "@/lib/env";
@@ -24,7 +25,9 @@ export async function handleApiRoute<T>(
   request: Request,
   options: {
     roles?: UserRole[];
+    permission?: Permission;
     requireOriginCheck?: boolean;
+    allowPendingPasswordSetup?: boolean;
     actionName: string;
     handler: (session: Session | null) => Promise<T>;
   },
@@ -35,8 +38,15 @@ export async function handleApiRoute<T>(
     }
 
     const session = options.roles
-      ? await requireApiSession(options.roles)
-      : await requireApiSession();
+      ? await requireApiSession({
+          roles: options.roles,
+          permission: options.permission,
+          allowPendingPasswordSetup: options.allowPendingPasswordSetup,
+        })
+      : await requireApiSession({
+          permission: options.permission,
+          allowPendingPasswordSetup: options.allowPendingPasswordSetup,
+        });
 
     enforceRateLimit(
       getRateLimitKey(request, session),
@@ -55,8 +65,15 @@ export async function handlePublicApiRoute<T>(
   request: Request,
   actionName: string,
   handler: () => Promise<T>,
+  options?: {
+    requireOriginCheck?: boolean;
+  },
 ) {
   try {
+    if (options?.requireOriginCheck) {
+      assertTrustedOrigin(request, env.appBaseUrl);
+    }
+
     enforceRateLimit(
       getRateLimitKey(request, null),
       DEFAULT_RATE_LIMIT,

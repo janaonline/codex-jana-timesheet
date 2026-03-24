@@ -1,25 +1,22 @@
-import { redirect } from "next/navigation";
-
+import { EditRequestTable } from "@/components/admin/edit-request-table";
 import { Card } from "@/components/common/card";
+import { EmptyState } from "@/components/common/empty-state";
 import { PortalShell } from "@/components/common/portal-shell";
 import { requireAppSession } from "@/lib/auth";
-import { listPendingEditRequests } from "@/services/timesheet-service";
-import { EditRequestTable } from "@/components/admin/edit-request-table";
-import { EmptyState } from "@/components/common/empty-state";
 import { getMonthLabel } from "@/lib/time";
+import { listPendingEditRequests } from "@/services/timesheet-service";
 
 export default async function EditRequestsPage() {
-  const session = await requireAppSession();
-
-  if (session.user.role === "PROGRAM_HEAD") {
-    redirect("/dashboard");
-  }
+  const session = await requireAppSession({
+    permission: "edit-requests:review",
+  });
 
   const requests = await listPendingEditRequests();
 
   return (
     <PortalShell
       role={session.user.role}
+      permissions={session.user.permissions}
       userName={session.user.name ?? session.user.email ?? "Admin"}
       currentPath="/admin/edit-requests"
     >
@@ -29,9 +26,8 @@ export default async function EditRequestsPage() {
         </p>
         <h2 className="text-4xl font-semibold text-stone-950">Unfreeze approvals</h2>
         <p className="max-w-3xl text-sm leading-6 text-stone-600">
-          Approvers can approve or reject only. They cannot directly edit directors&apos;
-          timesheets, which keeps this flow aligned with the document&apos;s clarified
-          unfreeze model.
+          Review requests from program heads who need a short edit window on a previous
+          month that has already been submitted or frozen.
         </p>
       </Card>
 
@@ -51,7 +47,7 @@ export default async function EditRequestsPage() {
       ) : (
         <EmptyState
           title="No pending requests"
-          description="All edit requests have been reviewed."
+          description="All edit requests have already been reviewed."
         />
       )}
     </PortalShell>

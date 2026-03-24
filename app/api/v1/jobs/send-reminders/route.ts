@@ -8,7 +8,9 @@ export async function POST(request: Request) {
   try {
     const secret = request.headers.get("x-job-secret");
     if (secret !== env.cronJobSharedSecret) {
-      await requireApiSession(["ADMIN", "OPERATIONS"]);
+      await requireApiSession({
+        permission: "jobs:run",
+      });
     }
 
     return apiSuccess(await runReminderJob(new Date()));

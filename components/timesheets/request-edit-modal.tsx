@@ -44,11 +44,12 @@ export function RequestEditModal({
         />
         <div className="flex items-center justify-between">
           <p className="text-xs text-stone-500">{reason.length}/500 characters</p>
-          <div className="flex gap-3">
-            <Button variant="secondary" onClick={onClose}>
+          <div className="grid gap-3 sm:flex">
+            <Button className="w-full sm:w-auto" variant="secondary" onClick={onClose}>
               Cancel
             </Button>
             <Button
+              className="w-full sm:w-auto"
               onClick={handleSubmit}
               disabled={submitting || !reason.trim()}
             >
