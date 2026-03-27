@@ -3,6 +3,10 @@ import { safeJsonParse } from "@/lib/utils";
 
 const DEFAULT_DATABASE_URL =
   "postgresql://postgres:postgres@localhost:5432/directors_timesheet";
+const DEFAULT_LOCAL_PORT = /^\d+$/.test(process.env.PORT ?? "")
+  ? process.env.PORT!
+  : "3000";
+const DEFAULT_LOCAL_BASE_URL = `http://localhost:${DEFAULT_LOCAL_PORT}`;
 
 function getEnv(name: string, fallback = "") {
   return process.env[name] ?? fallback;
@@ -26,7 +30,7 @@ function getAuthMode(name: string, fallback: AuthMode) {
 export const env = {
   nodeEnv: getEnv("NODE_ENV", "development"),
   databaseUrl: getEnv("DATABASE_URL", DEFAULT_DATABASE_URL),
-  nextAuthUrl: getEnv("NEXTAUTH_URL", "http://localhost:3000"),
+  nextAuthUrl: getEnv("NEXTAUTH_URL", DEFAULT_LOCAL_BASE_URL),
   nextAuthSecret: getEnv(
     "NEXTAUTH_SECRET",
     "replace-with-a-long-random-secret",
@@ -44,7 +48,7 @@ export const env = {
   smtpPassword: getEnv("SMTP_PASSWORD"),
   smtpFromEmail: getEnv("SMTP_FROM_EMAIL", "timesheets@janaagraha.org"),
   smtpFromName: getEnv("SMTP_FROM_NAME", "Janaagraha Timesheets"),
-  appBaseUrl: getEnv("APP_BASE_URL", "http://localhost:3000"),
+  appBaseUrl: getEnv("APP_BASE_URL", DEFAULT_LOCAL_BASE_URL),
   cronJobSharedSecret: getEnv("CRON_JOB_SHARED_SECRET", "dev-job-secret"),
   enableScheduler: getBoolean("ENABLE_SCHEDULER", false),
   supportContactEmail: getEnv(

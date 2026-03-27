@@ -1,4 +1,7 @@
 import { APP_NAME, ORGANIZATION_NAME } from "@/lib/constants";
+import { env } from "@/lib/env";
+
+const DEFAULT_SAMPLE_BASE_URL = "http://localhost:3000";
 
 type TemplateDefinition = {
   label: string;
@@ -620,7 +623,15 @@ export function buildEmailTemplatePreview(
   templates: Record<EmailTemplateKey, EmailTemplateContent>,
 ) {
   const definition = EMAIL_TEMPLATE_DEFINITIONS[key];
-  const rendered = renderEmailTemplate(key, definition.sampleTokens, templates);
+  const previewTokens = Object.fromEntries(
+    Object.entries(definition.sampleTokens).map(([tokenKey, tokenValue]) => [
+      tokenKey,
+      tokenKey.endsWith("Url")
+        ? tokenValue.replace(DEFAULT_SAMPLE_BASE_URL, env.appBaseUrl)
+        : tokenValue,
+    ]),
+  );
+  const rendered = renderEmailTemplate(key, previewTokens, templates);
 
   return {
     subject: rendered.subject,

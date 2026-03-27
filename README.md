@@ -273,7 +273,7 @@ npm run db:seed
 npm run dev
 ```
 
-Open `http://localhost:3000`.
+The app uses port `3000` by default. If `3000` is already in use, the local launcher picks an available port and prints the actual local URL in the terminal.
 
 For local-only verification without Azure credentials, use the "Development-only sign-in" panel on `/login`. Production authentication remains Microsoft Entra ID / Azure AD.
 
