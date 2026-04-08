@@ -2,7 +2,12 @@ import { PrismaClient } from "@prisma/client";
 
 import { hashPassword } from "../lib/password-auth";
 import { getMonthStart, getPreviousMonthKey, getMonthKey } from "../lib/time";
-import { calculateAssignedHours } from "../lib/timesheet-calculations";
+import {
+  calculateAssignedHours,
+  deriveLegacyDayStates,
+  minutesToHours,
+  normalizeHoursInputToMinutes,
+} from "../lib/timesheet-calculations";
 
 const prisma = new PrismaClient();
 const SEEDED_PASSWORD = "Jana@Timesheet2026";
@@ -166,23 +171,30 @@ function buildDailyEntries(
   const entries: Array<{
     workDate: Date;
     projectId: string;
+    minutes: number;
     hours: number;
     description: string;
   }> = [];
 
-  let remaining = totalHours;
+  const normalizedTotal = normalizeHoursInputToMinutes(totalHours);
+  if (!normalizedTotal.ok) {
+    throw new Error(normalizedTotal.error);
+  }
+
+  let remainingMinutes = normalizedTotal.minutes;
   let day = 1;
   let projectCursor = 0;
 
-  while (remaining > 0) {
-    const slice = remaining >= 8 ? 8 : remaining;
+  while (remainingMinutes > 0) {
+    const sliceMinutes = remainingMinutes >= 480 ? 480 : remainingMinutes;
     entries.push({
       workDate: new Date(`${monthKey}-${String(day).padStart(2, "0")}T00:00:00+05:30`),
       projectId: projectIds[projectCursor % projectIds.length],
-      hours: Number(slice.toFixed(2)),
+      minutes: sliceMinutes,
+      hours: minutesToHours(sliceMinutes),
       description: `Program delivery and leadership support for ${monthKey}`,
     });
-    remaining = Number((remaining - slice).toFixed(2));
+    remainingMinutes -= sliceMinutes;
     day += 1;
     projectCursor += 1;
   }
@@ -208,12 +220,20 @@ async function seedTimesheet(params: {
   rejectionReason?: string | null;
 }) {
   const user = await prisma.user.findUniqueOrThrow({ where: { id: params.userId } });
-  const derived = calculateAssignedHours({
+  const dayStates = deriveLegacyDayStates({
     monthKey: params.monthKey,
     leaveDays: params.leaveDays,
     joinDate: user.joinDate,
     exitDate: user.exitDate,
     holidays: [],
+  });
+  const derived = calculateAssignedHours({
+    monthKey: params.monthKey,
+    joinDate: user.joinDate,
+    exitDate: user.exitDate,
+    holidays: [],
+    dayStates,
+    legacyLeaveDays: params.leaveDays,
   });
 
   const timesheet = await prisma.timesheet.upsert({
@@ -224,8 +244,9 @@ async function seedTimesheet(params: {
       },
     },
     update: {
-      leaveDays: params.leaveDays,
+      leaveDays: derived.leaveDays,
       workingDaysCount: derived.workingDaysCount,
+      assignedMinutes: derived.assignedMinutes,
       assignedHours: derived.assignedHours,
       status: params.status,
       submittedAt:
@@ -248,8 +269,9 @@ async function seedTimesheet(params: {
       userId: params.userId,
       monthKey: params.monthKey,
       monthStart: getMonthStart(params.monthKey),
-      leaveDays: params.leaveDays,
+      leaveDays: derived.leaveDays,
       workingDaysCount: derived.workingDaysCount,
+      assignedMinutes: derived.assignedMinutes,
       assignedHours: derived.assignedHours,
       status: params.status,
       submittedAt:
@@ -272,15 +294,30 @@ async function seedTimesheet(params: {
   await prisma.timesheetEntry.deleteMany({
     where: { timesheetId: timesheet.id },
   });
+  await prisma.timesheetDayState.deleteMany({
+    where: { timesheetId: timesheet.id },
+  });
 
   await prisma.timesheetEntry.createMany({
     data: buildDailyEntries(params.monthKey, params.projectIds, params.totalHours).map(
       (entry) => ({
         ...entry,
         timesheetId: timesheet.id,
+        createdVia: "DAY",
+        lastEditedVia: "DAY",
       }),
     ),
   });
+  if (dayStates.length > 0) {
+    await prisma.timesheetDayState.createMany({
+      data: dayStates.map((state) => ({
+        timesheetId: timesheet.id,
+        workDate: new Date(`${state.workDate}T00:00:00+05:30`),
+        leaveType: state.leaveType,
+        isPersonalNonWorkingDay: state.isPersonalNonWorkingDay,
+      })),
+    });
+  }
 
   return timesheet;
 }
@@ -346,10 +383,11 @@ async function main() {
     status: "SUBMITTED",
     totalHours: calculateAssignedHours({
       monthKey: previousMonthKey,
-      leaveDays: 0,
       joinDate: users.anita.joinDate,
       exitDate: users.anita.exitDate,
       holidays: [],
+      dayStates: [],
+      legacyLeaveDays: 0,
     }).assignedHours,
     projectIds: [projects[0].id, projects[1].id],
   });
@@ -387,10 +425,11 @@ async function main() {
     status: "AUTO_SUBMITTED",
     totalHours: calculateAssignedHours({
       monthKey: olderMonthKey,
-      leaveDays: 0,
       joinDate: users.anita.joinDate,
       exitDate: users.anita.exitDate,
       holidays: [],
+      dayStates: [],
+      legacyLeaveDays: 0,
     }).assignedHours,
     projectIds: [projects[0].id, projects[2].id],
   });

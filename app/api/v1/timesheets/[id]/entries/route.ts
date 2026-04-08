@@ -36,7 +36,6 @@ export async function POST(
           userId: session!.user.id,
           role: session!.user.role as UserRole,
         },
-        leaveDays: current.timesheet.leaveDays,
         version: current.timesheet.version,
         entries: [
           ...current.timesheet.entries,

@@ -96,9 +96,56 @@ export default async function ReportsPage({
                 className="rounded-[24px] border border-stone-200 bg-stone-50 px-4 py-4 text-sm"
               >
                 <p className="font-semibold text-stone-900">{item.directorName}</p>
-                <p className="mt-1 text-stone-600">{item.totalHours} hours</p>
-              </div>
+              <p className="mt-1 text-stone-600">{item.totalHours} hours</p>
+            </div>
+          ))}
+          </div>
+          <div className="grid gap-4 md:grid-cols-2">
+            {hours.entryOriginSummary.map((item) => (
+              <Card key={item.entryType}>
+                <p className="text-xs uppercase tracking-[0.22em] text-stone-500">
+                  {item.entryType}
+                </p>
+                <p className="mt-2 text-2xl font-semibold text-stone-950">
+                  {item.totalHours} hours
+                </p>
+                <p className="mt-1 text-sm text-stone-600">{item.rowCount} rows</p>
+              </Card>
             ))}
+          </div>
+          <div className="overflow-x-auto rounded-[24px] border border-stone-200">
+            <table className="min-w-full divide-y divide-stone-200 text-left text-sm">
+              <thead className="bg-stone-50 text-stone-600">
+                <tr>
+                  <th className="px-4 py-3 font-medium">Director</th>
+                  <th className="px-4 py-3 font-medium">Date</th>
+                  <th className="px-4 py-3 font-medium">Project</th>
+                  <th className="px-4 py-3 font-medium">Hours</th>
+                  <th className="px-4 py-3 font-medium">Entry Type</th>
+                  <th className="px-4 py-3 font-medium">Created Via</th>
+                  <th className="px-4 py-3 font-medium">Last Edited Via</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-stone-100 bg-white text-stone-700">
+                {hours.entryDetails.slice(0, 8).map((item) => (
+                  <tr key={`${item.directorName}-${item.date}-${item.subProgramName}`}>
+                    <td className="px-4 py-3">{item.directorName}</td>
+                    <td className="px-4 py-3">
+                      {new Intl.DateTimeFormat("en-IN", {
+                        day: "2-digit",
+                        month: "short",
+                        year: "numeric",
+                      }).format(new Date(item.date))}
+                    </td>
+                    <td className="px-4 py-3">{item.subProgramName}</td>
+                    <td className="px-4 py-3">{item.hours}</td>
+                    <td className="px-4 py-3">{item.entryType}</td>
+                    <td className="px-4 py-3">{item.createdVia}</td>
+                    <td className="px-4 py-3">{item.lastEditedVia}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         </Card>
 

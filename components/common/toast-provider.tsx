@@ -1,43 +1,88 @@
 "use client";
 
-import { createContext, useContext, useEffect, useState } from "react";
+import { createContext, useContext, useEffect, useRef, useState } from "react";
+
+import {
+  DEFAULT_TOAST_DURATION_MS,
+  ERROR_TOAST_DURATION_MS,
+} from "@/lib/constants";
 
 type Toast = {
   id: string;
   title: string;
   tone: "error" | "success" | "info";
+  durationMs: number;
 };
 
 type ToastContextValue = {
-  pushToast: (toast: Omit<Toast, "id">) => void;
+  pushToast: (toast: Omit<Toast, "id" | "durationMs"> & { durationMs?: number }) => void;
 };
 
 const ToastContext = createContext<ToastContextValue | null>(null);
 
 export function ToastProvider({ children }: { children: React.ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([]);
+  const timeoutIdsRef = useRef<Map<string, number>>(new Map());
 
   useEffect(() => {
-    if (!toasts.length) {
-      return;
+    const timeoutIds = timeoutIdsRef.current;
+
+    return () => {
+      timeoutIds.forEach((timeoutId) => {
+        window.clearTimeout(timeoutId);
+      });
+      timeoutIds.clear();
+    };
+  }, []);
+
+  function dismissToast(toastId: string) {
+    const timeoutId = timeoutIdsRef.current.get(toastId);
+    if (timeoutId) {
+      window.clearTimeout(timeoutId);
+      timeoutIdsRef.current.delete(toastId);
     }
 
-    const timer = window.setTimeout(() => {
-      setToasts((current) => current.slice(1));
-    }, 4000);
-
-    return () => window.clearTimeout(timer);
-  }, [toasts]);
+    setToasts((current) => current.filter((toast) => toast.id !== toastId));
+  }
 
   const value: ToastContextValue = {
     pushToast(toast) {
-      setToasts((current) => [
-        ...current,
-        {
-          ...toast,
-          id: crypto.randomUUID(),
-        },
-      ]);
+      const nextToast: Toast = {
+        ...toast,
+        id: crypto.randomUUID(),
+        durationMs:
+          toast.durationMs ??
+          (toast.tone === "error"
+            ? ERROR_TOAST_DURATION_MS
+            : DEFAULT_TOAST_DURATION_MS),
+      };
+
+      setToasts((current) => {
+        if (toast.tone !== "error") {
+          return [...current, nextToast];
+        }
+
+        current
+          .filter((existingToast) => existingToast.tone === "error")
+          .forEach((existingToast) => {
+            const timeoutId = timeoutIdsRef.current.get(existingToast.id);
+            if (timeoutId) {
+              window.clearTimeout(timeoutId);
+              timeoutIdsRef.current.delete(existingToast.id);
+            }
+          });
+
+        return [
+          ...current.filter((existingToast) => existingToast.tone !== "error"),
+          nextToast,
+        ];
+      });
+
+      const timeoutId = window.setTimeout(() => {
+        dismissToast(nextToast.id);
+      }, nextToast.durationMs);
+
+      timeoutIdsRef.current.set(nextToast.id, timeoutId);
     },
   };
 

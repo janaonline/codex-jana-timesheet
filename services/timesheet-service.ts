@@ -1,4 +1,4 @@
-import { Prisma, type UserRole } from "@prisma/client";
+import { Prisma, type EntryOrigin, type UserRole } from "@prisma/client";
 import { formatInTimeZone } from "date-fns-tz";
 
 import { env } from "@/lib/env";
@@ -6,24 +6,31 @@ import { AppError } from "@/lib/errors";
 import { prisma } from "@/lib/prisma";
 import {
   calculateAssignedHours,
-  sumRecordedHours,
-  type DraftEntryInput,
+  distributeMinutesEvenly,
+  listWeekdaysForWeekInMonth,
+  minutesToHours,
+  normalizeHoursInputToMinutes,
+  validateDayStateInput,
   validateTimesheetInput,
+  type CalendarDay,
+  type DraftEntryInput,
+  type TimesheetDayStateInput,
 } from "@/lib/timesheet-calculations";
 import {
-  addWorkingDaysFromNextBusinessDay,
   formatDisplayDate,
   getDeadlineMetadata,
   getMonthKey,
   getMonthLabel,
   getMonthStart,
   getPreviousMonthKey,
+  isCurrentMonth,
   isPreviousMonth,
 } from "@/lib/time";
 import {
   canEditTimesheet,
   canRequestEdit,
   canSubmitTimesheet,
+  getTimesheetViewAvailability,
   shouldExpireEditWindow,
 } from "@/lib/workflow-rules";
 import { safeWriteAuditLog } from "@/services/audit-service";
@@ -35,6 +42,12 @@ const timesheetInclude = Prisma.validator<Prisma.TimesheetInclude>()({
     include: {
       project: true,
     },
+    orderBy: [
+      { workDate: "asc" },
+      { createdAt: "asc" },
+    ],
+  },
+  dayStates: {
     orderBy: {
       workDate: "asc",
     },
@@ -54,6 +67,35 @@ type TimesheetRecord = Prisma.TimesheetGetPayload<{
   include: typeof timesheetInclude;
 }>;
 
+type RawEntryInput = {
+  id?: string;
+  workDate: string;
+  projectId: string;
+  hours: number;
+  description?: string | null;
+};
+
+type Actor = {
+  userId: string;
+  role: UserRole;
+};
+
+type CapacityContext = Awaited<ReturnType<typeof getCapacityContext>>;
+
+export type TimesheetEntryView = {
+  id: string;
+  workDate: string;
+  projectId: string;
+  projectCode: string;
+  projectName: string;
+  minutes: number;
+  hours: number;
+  description: string;
+  createdVia: EntryOrigin;
+  lastEditedVia: EntryOrigin;
+  entryType: "Manual Entry" | "Auto Generated";
+};
+
 export type TimesheetView = {
   id: string;
   userId: string;
@@ -64,14 +106,22 @@ export type TimesheetView = {
   status: TimesheetRecord["status"];
   leaveDays: number;
   workingDaysCount: number;
+  assignedMinutes: number;
   assignedHours: number;
+  totalMinutes: number;
   totalHours: number;
   completionPercentage: number;
+  remainingMinutes: number;
   remainingHours: number;
   isExactlyComplete: boolean;
   isEditable: boolean;
   canSubmit: boolean;
   canRequestEdit: boolean;
+  viewAvailability: {
+    day: boolean;
+    week: boolean;
+    month: boolean;
+  };
   version: number;
   autoSubmitted: boolean;
   submittedAt: string | null;
@@ -82,15 +132,14 @@ export type TimesheetView = {
     submissionDeadlineDate: string;
     autoSubmitDate: string;
   };
-  entries: Array<{
-    id: string;
-    workDate: string;
-    projectId: string;
-    projectCode: string;
-    projectName: string;
-    hours: number;
-    description: string;
-  }>;
+  entries: TimesheetEntryView[];
+  dayStates: TimesheetDayStateInput[];
+  calendarDays: Array<
+    CalendarDay & {
+      baseCapacityHours: number;
+      capacityHours: number;
+    }
+  >;
   requestHistory: Array<{
     id: string;
     status: string;
@@ -124,11 +173,6 @@ export type DashboardData = {
   }>;
 };
 
-type Actor = {
-  userId: string;
-  role: UserRole;
-};
-
 function dateToIsoDate(date: Date) {
   return formatInTimeZone(date, "Asia/Kolkata", "yyyy-MM-dd");
 }
@@ -137,27 +181,68 @@ function toWorkDate(date: string) {
   return new Date(`${date}T00:00:00+05:30`);
 }
 
-function serializeTimesheet(timesheet: TimesheetRecord, reference = new Date()): TimesheetView {
-  const totalHours = Number(sumRecordedHours(
-    timesheet.entries.map((entry) => ({
-      id: entry.id,
-      workDate: dateToIsoDate(entry.workDate),
-      projectId: entry.projectId,
-      hours: entry.hours,
-      description: entry.description,
-    })),
-  ).toFixed(2));
-  const completionPercentage =
-    timesheet.assignedHours <= 0
-      ? 0
-      : Number(((totalHours / timesheet.assignedHours) * 100).toFixed(2));
-  const remainingHours = Math.max(
+function resolveEntryMinutes(entry: { minutes: number; hours: number }) {
+  if (entry.minutes > 0) {
+    return entry.minutes;
+  }
+
+  const normalized = normalizeHoursInputToMinutes(entry.hours);
+  if (normalized.ok) {
+    return normalized.minutes;
+  }
+
+  return Math.max(0, Math.round(entry.hours * 60));
+}
+
+function toStoredDayStates(timesheet: TimesheetRecord) {
+  return timesheet.dayStates.map((state) => ({
+    workDate: dateToIsoDate(state.workDate),
+    leaveType: state.leaveType,
+    isPersonalNonWorkingDay: state.isPersonalNonWorkingDay,
+  }));
+}
+
+async function getCapacityContext(timesheet: TimesheetRecord) {
+  const config = await getSystemConfiguration();
+  const summary = calculateAssignedHours({
+    monthKey: timesheet.monthKey,
+    joinDate: timesheet.user.joinDate,
+    exitDate: timesheet.user.exitDate,
+    holidays: config.holidayCalendar,
+    dayStates: toStoredDayStates(timesheet),
+    legacyLeaveDays: timesheet.leaveDays,
+  });
+
+  return {
+    config,
+    summary,
+  };
+}
+
+function serializeTimesheet(
+  timesheet: TimesheetRecord,
+  capacityContext: CapacityContext,
+  reference = new Date(),
+): TimesheetView {
+  const totalMinutes = timesheet.entries.reduce(
+    (sum, entry) => sum + resolveEntryMinutes(entry),
     0,
-    Number((timesheet.assignedHours - totalHours).toFixed(2)),
   );
+  const assignedMinutes = capacityContext.summary.assignedMinutes;
+  const totalHours = minutesToHours(totalMinutes);
+  const completionPercentage =
+    assignedMinutes <= 0
+      ? 0
+      : Number(((totalMinutes / assignedMinutes) * 100).toFixed(2));
+  const remainingMinutes = Math.max(0, assignedMinutes - totalMinutes);
   const isExactlyComplete =
-    timesheet.assignedHours > 0 &&
-    Number(totalHours.toFixed(2)) === Number(timesheet.assignedHours.toFixed(2));
+    assignedMinutes > 0 && totalMinutes === assignedMinutes;
+  const isEditable = canEditTimesheet({
+    status: timesheet.status,
+    monthKey: timesheet.monthKey,
+    reference,
+    editWindowClosesAt: timesheet.editWindowClosesAt,
+  });
 
   return {
     id: timesheet.id,
@@ -167,19 +252,17 @@ function serializeTimesheet(timesheet: TimesheetRecord, reference = new Date()):
     monthKey: timesheet.monthKey,
     monthLabel: getMonthLabel(timesheet.monthKey),
     status: timesheet.status,
-    leaveDays: timesheet.leaveDays,
-    workingDaysCount: timesheet.workingDaysCount,
-    assignedHours: timesheet.assignedHours,
+    leaveDays: capacityContext.summary.leaveDays,
+    workingDaysCount: capacityContext.summary.workingDaysCount,
+    assignedMinutes,
+    assignedHours: capacityContext.summary.assignedHours,
+    totalMinutes,
     totalHours,
     completionPercentage,
-    remainingHours,
+    remainingMinutes,
+    remainingHours: minutesToHours(remainingMinutes),
     isExactlyComplete,
-    isEditable: canEditTimesheet({
-      status: timesheet.status,
-      monthKey: timesheet.monthKey,
-      reference,
-      editWindowClosesAt: timesheet.editWindowClosesAt,
-    }),
+    isEditable,
     canSubmit: canSubmitTimesheet({
       status: timesheet.status,
       monthKey: timesheet.monthKey,
@@ -192,6 +275,12 @@ function serializeTimesheet(timesheet: TimesheetRecord, reference = new Date()):
       monthKey: timesheet.monthKey,
       reference,
     }),
+    viewAvailability: getTimesheetViewAvailability({
+      status: timesheet.status,
+      monthKey: timesheet.monthKey,
+      reference,
+      editWindowClosesAt: timesheet.editWindowClosesAt,
+    }),
     version: timesheet.version,
     autoSubmitted: timesheet.autoSubmitted,
     submittedAt: timesheet.submittedAt?.toISOString() ?? null,
@@ -199,14 +288,28 @@ function serializeTimesheet(timesheet: TimesheetRecord, reference = new Date()):
     editWindowClosesAt: timesheet.editWindowClosesAt?.toISOString() ?? null,
     rejectionReason: timesheet.rejectionReason,
     deadlines: getDeadlineMetadata(timesheet.monthKey),
-    entries: timesheet.entries.map((entry) => ({
-      id: entry.id,
-      workDate: dateToIsoDate(entry.workDate),
-      projectId: entry.projectId,
-      projectCode: entry.project.code,
-      projectName: entry.project.name,
-      hours: entry.hours,
-      description: entry.description ?? "",
+    entries: timesheet.entries.map((entry) => {
+      const minutes = resolveEntryMinutes(entry);
+      return {
+        id: entry.id,
+        workDate: dateToIsoDate(entry.workDate),
+        projectId: entry.projectId,
+        projectCode: entry.project.code,
+        projectName: entry.project.name,
+        minutes,
+        hours: minutesToHours(minutes),
+        description: entry.description ?? "",
+        createdVia: entry.createdVia,
+        lastEditedVia: entry.lastEditedVia,
+        entryType:
+          entry.createdVia === "DAY" ? "Manual Entry" : "Auto Generated",
+      } satisfies TimesheetEntryView;
+    }),
+    dayStates: capacityContext.summary.effectiveDayStates,
+    calendarDays: capacityContext.summary.calendarDays.map((day) => ({
+      ...day,
+      baseCapacityHours: minutesToHours(day.baseCapacityMinutes),
+      capacityHours: minutesToHours(day.capacityMinutes),
     })),
     requestHistory: timesheet.editRequests.map((request) => ({
       id: request.id,
@@ -256,10 +359,18 @@ async function getTimesheetRecordOrThrow(timesheetId: string) {
   return timesheet;
 }
 
+async function buildTimesheetView(timesheet: TimesheetRecord, reference = new Date()) {
+  const capacityContext = await getCapacityContext(timesheet);
+  return serializeTimesheet(timesheet, capacityContext, reference);
+}
+
 async function refreshTimesheetDerivedFields(
   userId: string,
   monthKey: string,
-  leaveDays: number,
+  params: {
+    dayStates: TimesheetDayStateInput[];
+    legacyLeaveDays: number;
+  },
 ) {
   const [user, config] = await Promise.all([
     getUserOrThrow(userId),
@@ -268,15 +379,20 @@ async function refreshTimesheetDerivedFields(
 
   return calculateAssignedHours({
     monthKey,
-    leaveDays,
     joinDate: user.joinDate,
     exitDate: user.exitDate,
     holidays: config.holidayCalendar,
+    dayStates: params.dayStates,
+    legacyLeaveDays: params.legacyLeaveDays,
   });
 }
 
 async function createOrRefreshTimesheet(userId: string, monthKey: string, reference: Date) {
-  const derived = await refreshTimesheetDerivedFields(userId, monthKey, 0);
+  const user = await getUserOrThrow(userId);
+  const summary = await refreshTimesheetDerivedFields(userId, monthKey, {
+    dayStates: [],
+    legacyLeaveDays: 0,
+  });
   const status =
     isPreviousMonth(monthKey, reference) &&
     reference >= new Date(`${getDeadlineMetadata(monthKey).autoSubmitDate}T00:00:00+05:30`)
@@ -291,98 +407,24 @@ async function createOrRefreshTimesheet(userId: string, monthKey: string, refere
       },
     },
     create: {
-      userId,
+      userId: user.id,
       monthKey,
       monthStart: getMonthStart(monthKey),
-      leaveDays: 0,
-      workingDaysCount: derived.workingDaysCount,
-      assignedHours: derived.assignedHours,
+      leaveDays: summary.leaveDays,
+      workingDaysCount: summary.workingDaysCount,
+      assignedMinutes: summary.assignedMinutes,
+      assignedHours: summary.assignedHours,
       status,
       frozenAt: status === "FROZEN" ? reference : null,
     },
     update: {
-      workingDaysCount: derived.workingDaysCount,
-      assignedHours: derived.assignedHours,
+      leaveDays: summary.leaveDays,
+      workingDaysCount: summary.workingDaysCount,
+      assignedMinutes: summary.assignedMinutes,
+      assignedHours: summary.assignedHours,
     },
     include: timesheetInclude,
   });
-}
-
-async function reconcileEntries(
-  tx: Prisma.TransactionClient,
-  timesheetId: string,
-  monthKey: string,
-  entries: DraftEntryInput[],
-) {
-  const existingEntries = await tx.timesheetEntry.findMany({
-    where: { timesheetId },
-    select: { id: true },
-  });
-
-  const existingIds = new Set(existingEntries.map((entry) => entry.id));
-  const incomingIds = new Set(entries.map((entry) => entry.id).filter(Boolean) as string[]);
-
-  const projectIds = [...new Set(entries.map((entry) => entry.projectId))];
-  const projectCount = await tx.project.count({
-    where: {
-      id: { in: projectIds },
-      isActive: true,
-    },
-  });
-
-  if (projectIds.length !== projectCount) {
-    throw new AppError(
-      "VALIDATION_ERROR",
-      400,
-      "One or more selected sub-programs are invalid or inactive.",
-    );
-  }
-
-  const entryOperations = entries.map((entry) => {
-    if (!entry.workDate.startsWith(monthKey)) {
-      throw new AppError(
-        "VALIDATION_ERROR",
-        400,
-        "Entry dates must belong to the selected month.",
-      );
-    }
-
-    if (entry.id && existingIds.has(entry.id)) {
-      return tx.timesheetEntry.update({
-        where: { id: entry.id },
-        data: {
-          projectId: entry.projectId,
-          workDate: toWorkDate(entry.workDate),
-          hours: entry.hours,
-          description: entry.description?.trim() || null,
-        },
-      });
-    }
-
-    return tx.timesheetEntry.create({
-      data: {
-        timesheetId,
-        projectId: entry.projectId,
-        workDate: toWorkDate(entry.workDate),
-        hours: entry.hours,
-        description: entry.description?.trim() || null,
-      },
-    });
-  });
-
-  const idsToDelete = existingEntries
-    .map((entry) => entry.id)
-    .filter((id) => !incomingIds.has(id));
-
-  if (idsToDelete.length) {
-    await tx.timesheetEntry.deleteMany({
-      where: {
-        id: { in: idsToDelete },
-      },
-    });
-  }
-
-  await Promise.all(entryOperations);
 }
 
 async function getAvailableProjects() {
@@ -395,7 +437,9 @@ async function getAvailableProjects() {
 function buildBreakdownHtml(timesheet: TimesheetRecord) {
   const grouped = timesheet.entries.reduce<Record<string, number>>((accumulator, entry) => {
     accumulator[entry.project.name] = Number(
-      ((accumulator[entry.project.name] ?? 0) + entry.hours).toFixed(2),
+      (
+        (accumulator[entry.project.name] ?? 0) + minutesToHours(resolveEntryMinutes(entry))
+      ).toFixed(2),
     );
     return accumulator;
   }, {});
@@ -424,6 +468,458 @@ function buildBreakdownHtml(timesheet: TimesheetRecord) {
   `;
 }
 
+function normalizeRawEntries(entries: RawEntryInput[]) {
+  const errors: string[] = [];
+
+  const normalized = entries.map((entry, index) => {
+    const normalizedHours = normalizeHoursInputToMinutes(entry.hours);
+    if (!normalizedHours.ok) {
+      errors.push(`Entry ${index + 1}: ${normalizedHours.error}`);
+      return {
+        id: entry.id,
+        workDate: entry.workDate,
+        projectId: entry.projectId,
+        minutes: 0,
+        description: entry.description,
+      } satisfies DraftEntryInput;
+    }
+
+    return {
+      id: entry.id,
+      workDate: entry.workDate,
+      projectId: entry.projectId,
+      minutes: normalizedHours.minutes,
+      description: entry.description,
+    } satisfies DraftEntryInput;
+  });
+
+  if (errors.length > 0) {
+    throw new AppError(
+      "TIMESHEET_VALIDATION_FAILED",
+      400,
+      "Timesheet validation failed.",
+      errors,
+    );
+  }
+
+  return normalized;
+}
+
+function getDateRangeMetadata(dates: string[]) {
+  if (!dates.length) {
+    return {
+      startDate: null,
+      endDate: null,
+    };
+  }
+
+  const sorted = [...dates].sort();
+  return {
+    startDate: sorted[0],
+    endDate: sorted[sorted.length - 1],
+  };
+}
+
+async function reconcileEntries(
+  tx: Prisma.TransactionClient,
+  timesheet: TimesheetRecord,
+  entries: DraftEntryInput[],
+  mode: EntryOrigin,
+) {
+  const existingEntries = await tx.timesheetEntry.findMany({
+    where: { timesheetId: timesheet.id },
+    select: {
+      id: true,
+      projectId: true,
+      workDate: true,
+      minutes: true,
+      hours: true,
+      description: true,
+      createdVia: true,
+      lastEditedVia: true,
+    },
+  });
+
+  const existingIds = new Map(existingEntries.map((entry) => [entry.id, entry]));
+  const incomingIds = new Set(entries.map((entry) => entry.id).filter(Boolean) as string[]);
+  const projectIds = [...new Set(entries.map((entry) => entry.projectId))];
+  const projectCount = await tx.project.count({
+    where: {
+      id: { in: projectIds },
+      isActive: true,
+    },
+  });
+
+  if (projectIds.length !== projectCount) {
+    throw new AppError(
+      "VALIDATION_ERROR",
+      400,
+      "One or more selected sub-programs are invalid or inactive.",
+    );
+  }
+
+  let createdCount = 0;
+  let updatedCount = 0;
+  let deletedCount = 0;
+
+  for (const entry of entries) {
+    if (!entry.workDate.startsWith(timesheet.monthKey)) {
+      throw new AppError(
+        "VALIDATION_ERROR",
+        400,
+        "Entry dates must belong to the selected month.",
+      );
+    }
+
+    const existing = entry.id ? existingIds.get(entry.id) : null;
+    if (existing) {
+      const nextDescription = entry.description?.trim() || null;
+      const existingWorkDate = dateToIsoDate(existing.workDate);
+      const hasChanges =
+        existing.projectId !== entry.projectId ||
+        existingWorkDate !== entry.workDate ||
+        resolveEntryMinutes(existing) !== entry.minutes ||
+        (existing.description ?? null) !== nextDescription;
+
+      if (!hasChanges) {
+        continue;
+      }
+
+      await tx.timesheetEntry.update({
+        where: { id: existing.id },
+        data: {
+          projectId: entry.projectId,
+          workDate: toWorkDate(entry.workDate),
+          minutes: entry.minutes,
+          hours: minutesToHours(entry.minutes),
+          description: nextDescription,
+          lastEditedVia: mode,
+        },
+      });
+      updatedCount += 1;
+      continue;
+    }
+
+    await tx.timesheetEntry.create({
+      data: {
+        timesheetId: timesheet.id,
+        projectId: entry.projectId,
+        workDate: toWorkDate(entry.workDate),
+        minutes: entry.minutes,
+        hours: minutesToHours(entry.minutes),
+        description: entry.description?.trim() || null,
+        createdVia: mode,
+        lastEditedVia: mode,
+      },
+    });
+    createdCount += 1;
+  }
+
+  const idsToDelete = existingEntries
+    .map((entry) => entry.id)
+    .filter((id) => !incomingIds.has(id));
+
+  if (idsToDelete.length > 0) {
+    const deleted = await tx.timesheetEntry.deleteMany({
+      where: {
+        id: { in: idsToDelete },
+      },
+    });
+    deletedCount = deleted.count;
+  }
+
+  return {
+    createdCount,
+    updatedCount,
+    deletedCount,
+  };
+}
+
+function getOverwriteCandidates(
+  timesheet: TimesheetRecord,
+  projectId: string,
+  targetDates: string[],
+) {
+  const targetDateSet = new Set(targetDates);
+  return timesheet.entries.filter(
+    (entry) =>
+      entry.projectId === projectId &&
+      targetDateSet.has(dateToIsoDate(entry.workDate)),
+  );
+}
+
+function buildOverwriteDetails(entries: TimesheetRecord["entries"]) {
+  const overwriteDates = [...new Set(entries.map((entry) => dateToIsoDate(entry.workDate)))];
+  return overwriteDates.map(
+    (workDate) => `${workDate}: an existing row for the selected sub-program will be replaced.`,
+  );
+}
+
+async function buildAllocationTargets(params: {
+  timesheet: TimesheetRecord;
+  targetDates: string[];
+  replacingEntryIds: Set<string>;
+}) {
+  const capacityContext = await getCapacityContext(params.timesheet);
+  const calendarDayMap = new Map(
+    capacityContext.summary.calendarDays.map((day) => [day.workDate, day]),
+  );
+  const untouchedMinutesByDate = params.timesheet.entries.reduce<Record<string, number>>(
+    (accumulator, entry) => {
+      if (params.replacingEntryIds.has(entry.id)) {
+        return accumulator;
+      }
+
+      const workDate = dateToIsoDate(entry.workDate);
+      accumulator[workDate] = (accumulator[workDate] ?? 0) + resolveEntryMinutes(entry);
+      return accumulator;
+    },
+    {},
+  );
+
+  const targets = params.targetDates.map((workDate) => {
+    const calendarDay = calendarDayMap.get(workDate);
+    const availableMinutes = Math.max(
+      0,
+      (calendarDay?.capacityMinutes ?? 0) - (untouchedMinutesByDate[workDate] ?? 0),
+    );
+
+    return {
+      workDate,
+      calendarDay,
+      untouchedMinutes: untouchedMinutesByDate[workDate] ?? 0,
+      availableMinutes,
+    };
+  });
+
+  return {
+    capacityContext,
+    targets,
+  };
+}
+
+async function applyGeneratedEntries(params: {
+  timesheet: TimesheetRecord;
+  actor: Actor;
+  mode: EntryOrigin;
+  version: number;
+  projectId: string;
+  totalHours: number;
+  description: string;
+  targetDates: string[];
+  confirmOverwrite?: boolean;
+  reference: Date;
+}) {
+  assertTimesheetAccess(params.timesheet, params.actor);
+
+  if (
+    !canEditTimesheet({
+      status: params.timesheet.status,
+      monthKey: params.timesheet.monthKey,
+      reference: params.reference,
+      editWindowClosesAt: params.timesheet.editWindowClosesAt,
+    })
+  ) {
+    throw new AppError("TIMESHEET_LOCKED", 400, "This timesheet is currently locked.");
+  }
+
+  if (params.version !== params.timesheet.version) {
+    throw new AppError(
+      "VERSION_CONFLICT",
+      400,
+      "A newer draft exists. Please refresh to avoid overwriting changes.",
+      { latestVersion: params.timesheet.version },
+    );
+  }
+
+  const viewAvailability = getTimesheetViewAvailability({
+    status: params.timesheet.status,
+    monthKey: params.timesheet.monthKey,
+    reference: params.reference,
+    editWindowClosesAt: params.timesheet.editWindowClosesAt,
+  });
+
+  if (
+    (params.mode === "WEEK" || params.mode === "MONTH") &&
+    !viewAvailability[params.mode.toLowerCase() as "week" | "month"]
+  ) {
+    throw new AppError(
+      "VIEW_NOT_AVAILABLE",
+      400,
+      "Week and Month allocation are only available on editable current-month drafts.",
+    );
+  }
+
+  const normalizedTotal = normalizeHoursInputToMinutes(params.totalHours);
+  if (!normalizedTotal.ok) {
+    throw new AppError("VALIDATION_ERROR", 400, normalizedTotal.error);
+  }
+
+  const overwriteCandidates = getOverwriteCandidates(
+    params.timesheet,
+    params.projectId,
+    params.targetDates,
+  );
+
+  if (overwriteCandidates.length > 0 && !params.confirmOverwrite) {
+    throw new AppError(
+      "OVERWRITE_CONFIRMATION_REQUIRED",
+      409,
+      "Existing rows for this sub-program will be replaced on the selected dates.",
+      buildOverwriteDetails(overwriteCandidates),
+    );
+  }
+
+  const replacingEntryIds = new Set(overwriteCandidates.map((entry) => entry.id));
+  const allocationTargets = await buildAllocationTargets({
+    timesheet: params.timesheet,
+    targetDates: params.targetDates,
+    replacingEntryIds,
+  });
+  const project = await prisma.project.findFirst({
+    where: {
+      id: params.projectId,
+      isActive: true,
+    },
+  });
+
+  if (!project) {
+    throw new AppError(
+      "VALIDATION_ERROR",
+      400,
+      "One or more selected sub-programs are invalid or inactive.",
+    );
+  }
+
+  const distribution = distributeMinutesEvenly({
+    totalMinutes: normalizedTotal.minutes,
+    targets: allocationTargets.targets.map((target) => ({
+      workDate: target.workDate,
+      capacityMinutes: target.availableMinutes,
+    })),
+  });
+
+  const newEntries = distribution.map((entry) => ({
+    workDate: entry.workDate,
+    projectId: params.projectId,
+    minutes: entry.minutes,
+    description: params.description,
+  })) satisfies DraftEntryInput[];
+
+  const remainingEntries = params.timesheet.entries
+    .filter((entry) => !replacingEntryIds.has(entry.id))
+    .map((entry) => ({
+      id: entry.id,
+      workDate: dateToIsoDate(entry.workDate),
+      projectId: entry.projectId,
+      minutes: resolveEntryMinutes(entry),
+      description: entry.description,
+      createdVia: entry.createdVia,
+      lastEditedVia: entry.lastEditedVia,
+    })) satisfies DraftEntryInput[];
+
+  const validation = validateTimesheetInput({
+    entries: [...remainingEntries, ...newEntries],
+    assignedMinutes: allocationTargets.capacityContext.summary.assignedMinutes,
+    calendarDays: allocationTargets.capacityContext.summary.calendarDays,
+    mode: "draft",
+  });
+
+  if (validation.errors.length > 0) {
+    throw new AppError(
+      "TIMESHEET_CAPACITY_CONFLICT",
+      400,
+      "The requested hours could not be applied to the selected dates.",
+      validation.errors,
+    );
+  }
+
+  const updatedTimesheet = await prisma.$transaction(async (tx) => {
+    if (replacingEntryIds.size > 0) {
+      await tx.timesheetEntry.deleteMany({
+        where: {
+          id: {
+            in: [...replacingEntryIds],
+          },
+        },
+      });
+    }
+
+    await Promise.all(
+      newEntries.map((entry) =>
+        tx.timesheetEntry.create({
+          data: {
+            timesheetId: params.timesheet.id,
+            projectId: entry.projectId,
+            workDate: toWorkDate(entry.workDate),
+            minutes: entry.minutes,
+            hours: minutesToHours(entry.minutes),
+            description: entry.description?.trim() || null,
+            createdVia: params.mode,
+            lastEditedVia: params.mode,
+          },
+        }),
+      ),
+    );
+
+    await tx.timesheet.update({
+      where: { id: params.timesheet.id },
+      data: {
+        leaveDays: allocationTargets.capacityContext.summary.leaveDays,
+        workingDaysCount: allocationTargets.capacityContext.summary.workingDaysCount,
+        assignedMinutes: allocationTargets.capacityContext.summary.assignedMinutes,
+        assignedHours: allocationTargets.capacityContext.summary.assignedHours,
+        rejectionReason: null,
+        version: {
+          increment: 1,
+        },
+      },
+    });
+
+    const dateRange = getDateRangeMetadata(distribution.map((entry) => entry.workDate));
+    await safeWriteAuditLog(
+      {
+        actorUserId: params.actor.userId,
+        subjectUserId: params.timesheet.userId,
+        timesheetId: params.timesheet.id,
+        action:
+          params.mode === "WEEK"
+            ? "TIMESHEET_WEEK_APPLIED"
+            : "TIMESHEET_MONTH_APPLIED",
+        entityType: "TIMESHEET",
+        entityId: params.timesheet.id,
+        metadata: {
+          mode: params.mode,
+          projectId: params.projectId,
+          projectName: project.name,
+          startDate: dateRange.startDate,
+          endDate: dateRange.endDate,
+          overwriteConfirmed: Boolean(params.confirmOverwrite),
+          rowsCreated: newEntries.length,
+          rowsDeleted: replacingEntryIds.size,
+          rowsUpdated: 0,
+        },
+      },
+      tx as unknown as typeof prisma,
+    );
+
+    return tx.timesheet.findUniqueOrThrow({
+      where: { id: params.timesheet.id },
+      include: timesheetInclude,
+    });
+  });
+
+  return {
+    timesheet: await buildTimesheetView(updatedTimesheet, params.reference),
+    overwriteCandidates: overwriteCandidates.map((entry) => ({
+      id: entry.id,
+      workDate: dateToIsoDate(entry.workDate),
+      projectName: entry.project.name,
+      hours: minutesToHours(resolveEntryMinutes(entry)),
+    })),
+  };
+}
+
 export async function ensureWindowTimesheets(userId: string, reference = new Date()) {
   const currentMonthKey = getMonthKey(reference);
   const previousMonthKey = getPreviousMonthKey(reference);
@@ -433,9 +929,14 @@ export async function ensureWindowTimesheets(userId: string, reference = new Dat
     createOrRefreshTimesheet(userId, previousMonthKey, reference),
   ]);
 
+  const [currentView, previousView] = await Promise.all([
+    buildTimesheetView(currentTimesheet, reference),
+    buildTimesheetView(previousTimesheet, reference),
+  ]);
+
   return {
-    currentTimesheet: serializeTimesheet(currentTimesheet, reference),
-    previousTimesheet: serializeTimesheet(previousTimesheet, reference),
+    currentTimesheet: currentView,
+    previousTimesheet: previousView,
   };
 }
 
@@ -454,7 +955,7 @@ export async function createTimesheetForUser(
   }
 
   const record = await createOrRefreshTimesheet(userId, monthKey, reference);
-  return serializeTimesheet(record, reference);
+  return buildTimesheetView(record, reference);
 }
 
 export async function listTimesheetsForUser(userId: string, reference = new Date()) {
@@ -466,7 +967,7 @@ export async function listTimesheetsForUser(userId: string, reference = new Date
     take: 12,
   });
 
-  return records.map((timesheet) => serializeTimesheet(timesheet, reference));
+  return Promise.all(records.map((timesheet) => buildTimesheetView(timesheet, reference)));
 }
 
 export async function getTimesheetForActor(
@@ -477,13 +978,14 @@ export async function getTimesheetForActor(
   const timesheet = await getTimesheetRecordOrThrow(timesheetId);
   assertTimesheetAccess(timesheet, actor);
 
-  const [projects, windowTimesheets] = await Promise.all([
+  const [projects, windowTimesheets, timesheetView] = await Promise.all([
     getAvailableProjects(),
     listTimesheetsForUser(timesheet.userId, reference),
+    buildTimesheetView(timesheet, reference),
   ]);
 
   return {
-    timesheet: serializeTimesheet(timesheet, reference),
+    timesheet: timesheetView,
     availableProjects: projects.map((project) => ({
       id: project.id,
       code: project.code,
@@ -502,9 +1004,8 @@ export async function getTimesheetForActor(
 export async function saveDraftTimesheet(params: {
   timesheetId: string;
   actor: Actor;
-  leaveDays: number;
   version: number;
-  entries: DraftEntryInput[];
+  entries: RawEntryInput[];
   reference?: Date;
 }) {
   const reference = params.reference ?? new Date();
@@ -531,19 +1032,23 @@ export async function saveDraftTimesheet(params: {
     );
   }
 
-  const derived = await refreshTimesheetDerivedFields(
+  const normalizedEntries = normalizeRawEntries(params.entries);
+  const capacitySummary = await refreshTimesheetDerivedFields(
     existing.userId,
     existing.monthKey,
-    params.leaveDays,
+    {
+      dayStates: toStoredDayStates(existing),
+      legacyLeaveDays: existing.leaveDays,
+    },
   );
   const validation = validateTimesheetInput({
-    entries: params.entries,
-    leaveDays: params.leaveDays,
-    assignedHours: derived.assignedHours,
+    entries: normalizedEntries,
+    assignedMinutes: capacitySummary.assignedMinutes,
+    calendarDays: capacitySummary.calendarDays,
     mode: "draft",
   });
 
-  if (validation.errors.length) {
+  if (validation.errors.length > 0) {
     throw new AppError(
       "TIMESHEET_VALIDATION_FAILED",
       400,
@@ -556,9 +1061,10 @@ export async function saveDraftTimesheet(params: {
     await tx.timesheet.update({
       where: { id: existing.id },
       data: {
-        leaveDays: params.leaveDays,
-        workingDaysCount: derived.workingDaysCount,
-        assignedHours: derived.assignedHours,
+        leaveDays: capacitySummary.leaveDays,
+        workingDaysCount: capacitySummary.workingDaysCount,
+        assignedMinutes: capacitySummary.assignedMinutes,
+        assignedHours: capacitySummary.assignedHours,
         version: {
           increment: 1,
         },
@@ -566,7 +1072,9 @@ export async function saveDraftTimesheet(params: {
       },
     });
 
-    await reconcileEntries(tx, existing.id, existing.monthKey, params.entries);
+    const changeSummary = await reconcileEntries(tx, existing, normalizedEntries, "DAY");
+    const affectedDates = normalizedEntries.map((entry) => entry.workDate);
+    const dateRange = getDateRangeMetadata(affectedDates);
 
     await safeWriteAuditLog(
       {
@@ -577,7 +1085,13 @@ export async function saveDraftTimesheet(params: {
         entityType: "TIMESHEET",
         entityId: existing.id,
         metadata: {
-          leaveDays: params.leaveDays,
+          mode: "DAY",
+          startDate: dateRange.startDate,
+          endDate: dateRange.endDate,
+          rowsCreated: changeSummary.createdCount,
+          rowsUpdated: changeSummary.updatedCount,
+          rowsDeleted: changeSummary.deletedCount,
+          overwriteConfirmed: false,
           totalHours: validation.totalHours,
         },
       },
@@ -591,9 +1105,257 @@ export async function saveDraftTimesheet(params: {
   });
 
   return {
-    timesheet: serializeTimesheet(updatedTimesheet, reference),
+    timesheet: await buildTimesheetView(updatedTimesheet, reference),
     breakdownHtml: buildBreakdownHtml(updatedTimesheet),
   };
+}
+
+export async function updateTimesheetCalendar(params: {
+  timesheetId: string;
+  actor: Actor;
+  version: number;
+  updates: TimesheetDayStateInput[];
+  reference?: Date;
+}) {
+  const reference = params.reference ?? new Date();
+  const existing = await getTimesheetRecordOrThrow(params.timesheetId);
+  assertTimesheetAccess(existing, params.actor);
+
+  if (
+    !canEditTimesheet({
+      status: existing.status,
+      monthKey: existing.monthKey,
+      reference,
+      editWindowClosesAt: existing.editWindowClosesAt,
+    })
+  ) {
+    throw new AppError("TIMESHEET_LOCKED", 400, "This timesheet is currently locked.");
+  }
+
+  if (params.version !== existing.version) {
+    throw new AppError(
+      "VERSION_CONFLICT",
+      400,
+      "A newer draft exists. Please refresh to avoid overwriting changes.",
+      { latestVersion: existing.version },
+    );
+  }
+
+  const currentCapacityContext = await getCapacityContext(existing);
+  const calendarDayMap = new Map(
+    currentCapacityContext.summary.calendarDays.map((day) => [day.workDate, day]),
+  );
+  const nextStateMap = new Map(
+    currentCapacityContext.summary.effectiveDayStates.map((state) => [state.workDate, state]),
+  );
+
+  for (const update of params.updates) {
+    if (!update.workDate.startsWith(existing.monthKey)) {
+      throw new AppError(
+        "VALIDATION_ERROR",
+        400,
+        "Calendar updates must belong to the selected month.",
+      );
+    }
+
+    const calendarDay = calendarDayMap.get(update.workDate);
+    if (!calendarDay) {
+      throw new AppError(
+        "VALIDATION_ERROR",
+        400,
+        "Calendar updates must belong to the selected month.",
+      );
+    }
+
+    validateDayStateInput(calendarDay, update);
+
+    if (update.leaveType === "NONE" && !update.isPersonalNonWorkingDay) {
+      nextStateMap.delete(update.workDate);
+      continue;
+    }
+
+    nextStateMap.set(update.workDate, update);
+  }
+
+  const nextStates = [...nextStateMap.values()].sort((left, right) =>
+    left.workDate.localeCompare(right.workDate),
+  );
+  const nextSummary = await refreshTimesheetDerivedFields(existing.userId, existing.monthKey, {
+    dayStates: nextStates,
+    legacyLeaveDays: 0,
+  });
+  const currentEntries = existing.entries.map((entry) => ({
+    id: entry.id,
+    workDate: dateToIsoDate(entry.workDate),
+    projectId: entry.projectId,
+    minutes: resolveEntryMinutes(entry),
+    description: entry.description,
+    createdVia: entry.createdVia,
+    lastEditedVia: entry.lastEditedVia,
+  })) satisfies DraftEntryInput[];
+  const validation = validateTimesheetInput({
+    entries: currentEntries,
+    assignedMinutes: nextSummary.assignedMinutes,
+    calendarDays: nextSummary.calendarDays,
+    mode: "draft",
+  });
+
+  if (validation.errors.length > 0) {
+    throw new AppError(
+      "TIMESHEET_CAPACITY_CONFLICT",
+      400,
+      "The selected date state conflicts with existing entries.",
+      validation.errors,
+    );
+  }
+
+  const updatedTimesheet = await prisma.$transaction(async (tx) => {
+    const existingDayStates = await tx.timesheetDayState.findMany({
+      where: {
+        timesheetId: existing.id,
+      },
+      select: {
+        id: true,
+        workDate: true,
+      },
+    });
+    const existingDayStateIds = new Map(
+      existingDayStates.map((state) => [dateToIsoDate(state.workDate), state.id]),
+    );
+    const nextDateSet = new Set(nextStates.map((state) => state.workDate));
+
+    for (const [workDate, id] of existingDayStateIds.entries()) {
+      if (!nextDateSet.has(workDate)) {
+        await tx.timesheetDayState.delete({
+          where: { id },
+        });
+      }
+    }
+
+    for (const state of nextStates) {
+      const existingId = existingDayStateIds.get(state.workDate);
+      if (existingId) {
+        await tx.timesheetDayState.update({
+          where: { id: existingId },
+          data: {
+            leaveType: state.leaveType,
+            isPersonalNonWorkingDay: state.isPersonalNonWorkingDay,
+          },
+        });
+        continue;
+      }
+
+      await tx.timesheetDayState.create({
+        data: {
+          timesheetId: existing.id,
+          workDate: toWorkDate(state.workDate),
+          leaveType: state.leaveType,
+          isPersonalNonWorkingDay: state.isPersonalNonWorkingDay,
+        },
+      });
+    }
+
+    await tx.timesheet.update({
+      where: { id: existing.id },
+      data: {
+        leaveDays: nextSummary.leaveDays,
+        workingDaysCount: nextSummary.workingDaysCount,
+        assignedMinutes: nextSummary.assignedMinutes,
+        assignedHours: nextSummary.assignedHours,
+        rejectionReason: null,
+        version: {
+          increment: 1,
+        },
+      },
+    });
+
+    const dateRange = getDateRangeMetadata(params.updates.map((update) => update.workDate));
+    await safeWriteAuditLog(
+      {
+        actorUserId: params.actor.userId,
+        subjectUserId: existing.userId,
+        timesheetId: existing.id,
+        action: "TIMESHEET_CALENDAR_UPDATED",
+        entityType: "TIMESHEET",
+        entityId: existing.id,
+        metadata: {
+          mode: "DAY",
+          startDate: dateRange.startDate,
+          endDate: dateRange.endDate,
+          rowsCreated: 0,
+          rowsUpdated: params.updates.length,
+          rowsDeleted: 0,
+          overwriteConfirmed: false,
+        },
+      },
+      tx as unknown as typeof prisma,
+    );
+
+    return tx.timesheet.findUniqueOrThrow({
+      where: { id: existing.id },
+      include: timesheetInclude,
+    });
+  });
+
+  return {
+    timesheet: await buildTimesheetView(updatedTimesheet, reference),
+  };
+}
+
+export async function applyWeekAllocation(params: {
+  timesheetId: string;
+  actor: Actor;
+  version: number;
+  projectId: string;
+  totalHours: number;
+  description: string;
+  weekStartDate: string;
+  confirmOverwrite?: boolean;
+  reference?: Date;
+}) {
+  const reference = params.reference ?? new Date();
+  const existing = await getTimesheetRecordOrThrow(params.timesheetId);
+
+  return applyGeneratedEntries({
+    timesheet: existing,
+    actor: params.actor,
+    mode: "WEEK",
+    version: params.version,
+    projectId: params.projectId,
+    totalHours: params.totalHours,
+    description: params.description,
+    targetDates: listWeekdaysForWeekInMonth(params.weekStartDate, existing.monthKey),
+    confirmOverwrite: params.confirmOverwrite,
+    reference,
+  });
+}
+
+export async function applyMonthAllocation(params: {
+  timesheetId: string;
+  actor: Actor;
+  version: number;
+  projectId: string;
+  totalHours: number;
+  description: string;
+  confirmOverwrite?: boolean;
+  reference?: Date;
+}) {
+  const reference = params.reference ?? new Date();
+  const existing = await getTimesheetRecordOrThrow(params.timesheetId);
+  const capacityContext = await getCapacityContext(existing);
+
+  return applyGeneratedEntries({
+    timesheet: existing,
+    actor: params.actor,
+    mode: "MONTH",
+    version: params.version,
+    projectId: params.projectId,
+    totalHours: params.totalHours,
+    description: params.description,
+    targetDates: capacityContext.summary.calendarDays.map((day) => day.workDate),
+    confirmOverwrite: params.confirmOverwrite,
+    reference,
+  });
 }
 
 export async function submitTimesheet(params: {
@@ -605,21 +1367,26 @@ export async function submitTimesheet(params: {
   const reference = params.reference ?? new Date();
   const existing = await getTimesheetRecordOrThrow(params.timesheetId);
   assertTimesheetAccess(existing, params.actor);
-
+  const capacitySummary = await refreshTimesheetDerivedFields(existing.userId, existing.monthKey, {
+    dayStates: toStoredDayStates(existing),
+    legacyLeaveDays: existing.leaveDays,
+  });
   const validation = validateTimesheetInput({
     entries: existing.entries.map((entry) => ({
       id: entry.id,
       workDate: dateToIsoDate(entry.workDate),
       projectId: entry.projectId,
-      hours: entry.hours,
+      minutes: resolveEntryMinutes(entry),
       description: entry.description,
+      createdVia: entry.createdVia,
+      lastEditedVia: entry.lastEditedVia,
     })),
-    leaveDays: existing.leaveDays,
-    assignedHours: existing.assignedHours,
+    assignedMinutes: capacitySummary.assignedMinutes,
+    calendarDays: capacitySummary.calendarDays,
     mode: "submit",
   });
 
-  if (validation.errors.length) {
+  if (validation.errors.length > 0) {
     throw new AppError(
       "TIMESHEET_VALIDATION_FAILED",
       400,
@@ -660,6 +1427,10 @@ export async function submitTimesheet(params: {
         submittedAt: reference,
         frozenAt: reference,
         editWindowClosesAt: null,
+        leaveDays: capacitySummary.leaveDays,
+        workingDaysCount: capacitySummary.workingDaysCount,
+        assignedMinutes: capacitySummary.assignedMinutes,
+        assignedHours: capacitySummary.assignedHours,
       },
     });
 
@@ -674,6 +1445,7 @@ export async function submitTimesheet(params: {
         metadata: {
           submissionMethod: params.method,
           totalHours: validation.totalHours,
+          totalMinutes: validation.totalMinutes,
         },
       },
       tx as unknown as typeof prisma,
@@ -686,8 +1458,9 @@ export async function submitTimesheet(params: {
   });
 
   return {
-    timesheet: serializeTimesheet(submitted, reference),
+    timesheet: await buildTimesheetView(submitted, reference),
     totalHoursRecorded: validation.totalHours,
+    totalMinutesRecorded: validation.totalMinutes,
     breakdownHtml: buildBreakdownHtml(submitted),
   };
 }
@@ -771,7 +1544,7 @@ export async function requestEdit(params: {
   return {
     request: createdRequest,
     approvers,
-    timesheet: serializeTimesheet(
+    timesheet: await buildTimesheetView(
       await getTimesheetRecordOrThrow(existing.id),
       reference,
     ),
@@ -818,6 +1591,7 @@ export async function approveEditRequest(params: {
   }
 
   const config = await getSystemConfiguration();
+  const { addWorkingDaysFromNextBusinessDay } = await import("@/lib/time");
   const editableUntil = addWorkingDaysFromNextBusinessDay(
     reference,
     3,
@@ -871,7 +1645,7 @@ export async function approveEditRequest(params: {
 
   return {
     request: updatedRequest,
-    timesheet: serializeTimesheet(
+    timesheet: await buildTimesheetView(
       await getTimesheetRecordOrThrow(request.timesheetId),
       reference,
     ),
@@ -948,7 +1722,7 @@ export async function rejectEditRequest(params: {
 
   return {
     request: rejection,
-    timesheet: serializeTimesheet(
+    timesheet: await buildTimesheetView(
       await getTimesheetRecordOrThrow(request.timesheetId),
       reference,
     ),
@@ -1087,7 +1861,7 @@ export async function ensurePreviousMonthTimesheetsForAllProgramHeads(reference 
 
 export async function getTimesheetEmailContext(timesheetId: string, reference = new Date()) {
   const timesheet = await getTimesheetRecordOrThrow(timesheetId);
-  const view = serializeTimesheet(timesheet, reference);
+  const view = await buildTimesheetView(timesheet, reference);
 
   return {
     timesheet,
@@ -1096,5 +1870,21 @@ export async function getTimesheetEmailContext(timesheetId: string, reference = 
     timesheetUrl: `${env.appBaseUrl}/timesheets/${timesheet.id}`,
     reviewUrl: `${env.appBaseUrl}/admin/edit-requests`,
     breakdownHtml: buildBreakdownHtml(timesheet),
+  };
+}
+
+export function summarizeTimesheetForReporting(view: TimesheetView) {
+  return {
+    id: view.id,
+    monthKey: view.monthKey,
+    monthLabel: view.monthLabel,
+    assignedMinutes: view.assignedMinutes,
+    assignedHours: view.assignedHours,
+    totalMinutes: view.totalMinutes,
+    totalHours: view.totalHours,
+    completionPercentage: view.completionPercentage,
+    remainingHours: view.remainingHours,
+    isCurrentMonth: isCurrentMonth(view.monthKey),
+    isPreviousMonth: isPreviousMonth(view.monthKey),
   };
 }

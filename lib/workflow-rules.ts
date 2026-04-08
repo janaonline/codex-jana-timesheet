@@ -9,15 +9,15 @@ import {
 
 export function isEligibleForAutoSubmit(params: {
   status: TimesheetStatus;
-  assignedHours: number;
-  totalHours: number;
+  assignedMinutes: number;
+  totalMinutes: number;
   monthKey: string;
   reference: Date;
 }) {
   return (
     params.status === "DRAFT" &&
-    params.assignedHours > 0 &&
-    params.totalHours === params.assignedHours &&
+    params.assignedMinutes > 0 &&
+    params.totalMinutes === params.assignedMinutes &&
     params.monthKey === getPreviousMonthKey(params.reference) &&
     isExactAutoSubmitMoment(params.reference)
   );
@@ -95,6 +95,24 @@ export function canSubmitTimesheet(params: {
 
   return params.monthKey === getMonthKey(params.reference) ||
     params.monthKey === getPreviousMonthKey(params.reference);
+}
+
+export function getTimesheetViewAvailability(params: {
+  status: TimesheetStatus;
+  monthKey: string;
+  reference: Date;
+  editWindowClosesAt?: Date | null;
+}) {
+  const day = canEditTimesheet(params);
+  const isCurrent = params.monthKey === getMonthKey(params.reference);
+  const week = day && isCurrent && params.status === "DRAFT";
+  const month = week;
+
+  return {
+    day,
+    week,
+    month,
+  };
 }
 
 export function canRequestEdit(params: {

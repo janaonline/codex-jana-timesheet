@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { getMonthLabel, getPreviousMonthKey } from "@/lib/time";
 import { average } from "@/lib/utils";
 import { getCutoffDate } from "@/lib/workflow-rules";
+import { minutesToHours } from "@/lib/timesheet-calculations";
 
 export type ComplianceReport = {
   monthKey: string;
@@ -38,6 +39,20 @@ export type HoursUtilizationReport = {
   monthOverMonthTrend: Array<{
     monthLabel: string;
     totalHours: number;
+  }>;
+  entryOriginSummary: Array<{
+    entryType: "Manual Entry" | "Auto Generated";
+    totalHours: number;
+    rowCount: number;
+  }>;
+  entryDetails: Array<{
+    directorName: string;
+    date: string;
+    subProgramName: string;
+    hours: number;
+    createdVia: string;
+    lastEditedVia: string;
+    entryType: "Manual Entry" | "Auto Generated";
   }>;
 };
 
@@ -84,6 +99,12 @@ async function getTimesheetsForMonth(monthKey: string) {
       },
     },
   });
+}
+
+function entryTypeForOrigin(
+  createdVia: string,
+): "Manual Entry" | "Auto Generated" {
+  return createdVia === "DAY" ? "Manual Entry" : "Auto Generated";
 }
 
 export async function getComplianceReport(monthKey = getPreviousMonthKey(new Date())) {
@@ -147,10 +168,13 @@ export async function getComplianceReport(monthKey = getPreviousMonthKey(new Dat
       ).length,
     },
     pendingByDirector: pending.map((timesheet) => {
-      const totalHours = timesheet.entries.reduce((sum, entry) => sum + entry.hours, 0);
+      const totalMinutes = timesheet.entries.reduce(
+        (sum, entry) => sum + entry.minutes,
+        0,
+      );
       const completionPercentage =
-        timesheet.assignedHours > 0
-          ? Number(((totalHours / timesheet.assignedHours) * 100).toFixed(2))
+        timesheet.assignedMinutes > 0
+          ? Number(((totalMinutes / timesheet.assignedMinutes) * 100).toFixed(2))
           : 0;
 
       return {
@@ -189,14 +213,16 @@ export async function getHoursUtilizationReport(
   const totalsByDirector = timesheets.map((timesheet) => ({
     directorName: timesheet.user.name,
     totalHours: Number(
-      timesheet.entries.reduce((sum, entry) => sum + entry.hours, 0).toFixed(2),
+      minutesToHours(
+        timesheet.entries.reduce((sum, entry) => sum + entry.minutes, 0),
+      ).toFixed(2),
     ),
   }));
 
   const projectHours = timesheets.flatMap((timesheet) =>
     timesheet.entries.map((entry) => ({
       projectName: entry.project.name,
-      hours: entry.hours,
+      hours: minutesToHours(entry.minutes),
     })),
   );
 
@@ -229,7 +255,9 @@ export async function getHoursUtilizationReport(
 
   const trendBuckets = recentTimesheets.reduce<Record<string, number>>(
     (accumulator, timesheet) => {
-      const hours = timesheet.entries.reduce((sum, entry) => sum + entry.hours, 0);
+      const hours = minutesToHours(
+        timesheet.entries.reduce((sum, entry) => sum + entry.minutes, 0),
+      );
       accumulator[timesheet.monthKey] = Number(
         ((accumulator[timesheet.monthKey] ?? 0) + hours).toFixed(2),
       );
@@ -237,6 +265,49 @@ export async function getHoursUtilizationReport(
     },
     {},
   );
+
+  const entryDetails = timesheets.flatMap((timesheet) =>
+    timesheet.entries.map((entry) => ({
+      directorName: timesheet.user.name,
+      date: entry.workDate.toISOString(),
+      subProgramName: entry.project.name,
+      hours: minutesToHours(entry.minutes),
+      createdVia: entry.createdVia,
+      lastEditedVia: entry.lastEditedVia,
+      entryType: entryTypeForOrigin(entry.createdVia),
+    })),
+  );
+
+  const entryOriginBuckets = entryDetails.reduce<
+    Record<
+      string,
+      {
+        entryType: "Manual Entry" | "Auto Generated";
+        totalHours: number;
+        rowCount: number;
+      }
+    >
+  >((accumulator, entry) => {
+    accumulator[entry.entryType] ??= {
+      entryType: entry.entryType,
+      totalHours: 0,
+      rowCount: 0,
+    };
+    accumulator[entry.entryType].totalHours = Number(
+      (accumulator[entry.entryType].totalHours + entry.hours).toFixed(2),
+    );
+    accumulator[entry.entryType].rowCount += 1;
+    return accumulator;
+  }, {});
+
+  const entryOriginSummary = ([
+    "Manual Entry",
+    "Auto Generated",
+  ] as const).map((entryType) => ({
+    entryType,
+    totalHours: entryOriginBuckets[entryType]?.totalHours ?? 0,
+    rowCount: entryOriginBuckets[entryType]?.rowCount ?? 0,
+  }));
 
   return {
     monthKey,
@@ -249,6 +320,8 @@ export async function getHoursUtilizationReport(
         monthLabel: getMonthLabel(trendMonthKey),
         totalHours,
       })),
+    entryOriginSummary,
+    entryDetails,
   } satisfies HoursUtilizationReport;
 }
 
