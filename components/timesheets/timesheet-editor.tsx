@@ -122,6 +122,25 @@ function formatHoursValue(hours: number) {
   return Number(hours.toFixed(2)).toString();
 }
 
+function getActiveMonthDateBounds(
+  calendarDays: TimesheetView["calendarDays"],
+  monthKey: string,
+) {
+  const monthDates = calendarDays
+    .map((day) => day.workDate)
+    .filter((workDate) => workDate.startsWith(monthKey))
+    .sort((left, right) => left.localeCompare(right));
+  const [yearValue, monthValue] = monthKey.split("-").map(Number);
+  const fallbackMaxDate = Number.isInteger(yearValue) && Number.isInteger(monthValue)
+    ? new Date(Date.UTC(yearValue, monthValue, 0)).toISOString().slice(0, 10)
+    : `${monthKey}-01`;
+
+  return {
+    minDate: monthDates[0] ?? `${monthKey}-01`,
+    maxDate: monthDates[monthDates.length - 1] ?? fallbackMaxDate,
+  };
+}
+
 function buildWeekOptions(calendarDays: TimesheetView["calendarDays"]) {
   const options = new Map<
     string,
@@ -223,6 +242,10 @@ export function TimesheetEditor({
   });
   const weekOptions = useMemo(() => buildWeekOptions(timesheet.calendarDays), [timesheet.calendarDays]);
   const dateStateSummary = useMemo(() => summarizeDateStates(timesheet), [timesheet]);
+  const activeMonthDateBounds = useMemo(
+    () => getActiveMonthDateBounds(timesheet.calendarDays, timesheet.monthKey),
+    [timesheet.calendarDays, timesheet.monthKey],
+  );
   const totalMinutes = draft.entries.reduce((sum, entry) => sum + entry.minutes, 0);
   const totalHours = minutesToHours(totalMinutes);
   const completionPercentage =
@@ -336,6 +359,17 @@ export function TimesheetEditor({
     }));
   }
 
+  function updateWorkDate(localId: string, workDate: string) {
+    if (
+      workDate &&
+      (workDate < activeMonthDateBounds.minDate || workDate > activeMonthDateBounds.maxDate)
+    ) {
+      return;
+    }
+
+    updateEntry(localId, "workDate", workDate);
+  }
+
   function addEntry() {
     const tempId = `temp-${crypto.randomUUID()}`;
     setDraft((current) => ({
@@ -345,7 +379,7 @@ export function TimesheetEditor({
         {
           id: tempId,
           localId: tempId,
-          workDate: "",
+          workDate: activeMonthDateBounds.minDate,
           projectId: "",
           projectCode: "",
           projectName: "",
@@ -910,10 +944,10 @@ export function TimesheetEditor({
                       className="mt-2"
                       type="date"
                       value={entry.workDate}
+                      min={activeMonthDateBounds.minDate}
+                      max={activeMonthDateBounds.maxDate}
                       disabled={readOnly}
-                      onChange={(event) =>
-                        updateEntry(entry.localId, "workDate", event.target.value)
-                      }
+                      onChange={(event) => updateWorkDate(entry.localId, event.target.value)}
                     />
                   </label>
                   <label className="text-sm font-medium text-stone-700">
@@ -989,10 +1023,10 @@ export function TimesheetEditor({
                       <Input
                         type="date"
                         value={entry.workDate}
+                        min={activeMonthDateBounds.minDate}
+                        max={activeMonthDateBounds.maxDate}
                         disabled={readOnly}
-                        onChange={(event) =>
-                          updateEntry(entry.localId, "workDate", event.target.value)
-                        }
+                        onChange={(event) => updateWorkDate(entry.localId, event.target.value)}
                       />
                     </td>
                     <td className="px-3 py-3">
