@@ -1,5 +1,4 @@
-import { spawn, spawnSync } from "node:child_process";
-import { createRequire } from "node:module";
+import { spawn } from "node:child_process";
 import { createServer } from "node:net";
 import { URL } from "node:url";
 import nextEnv from "@next/env";
@@ -13,55 +12,6 @@ const LOCAL_HOSTNAMES = new Set([
   "[::1]",
 ]);
 const { loadEnvConfig } = nextEnv;
-const require = createRequire(import.meta.url);
-
-function assertDatabaseSchemaIsCurrent(mode) {
-  if (process.env.SKIP_PRISMA_MIGRATION_CHECK === "1") {
-    return;
-  }
-
-  let prismaCliPath;
-
-  try {
-    prismaCliPath = require.resolve("prisma/build/index.js");
-  } catch (error) {
-    console.warn(
-      `[startup] Skipping Prisma migration preflight because the Prisma CLI is unavailable in ${mode} mode.`,
-      error instanceof Error ? error.message : error,
-    );
-    return;
-  }
-
-  const result = spawnSync(
-    process.execPath,
-    [prismaCliPath, "migrate", "status"],
-    {
-      cwd: process.cwd(),
-      env: process.env,
-      encoding: "utf8",
-    },
-  );
-
-  if (result.status === 0) {
-    return;
-  }
-
-  const details = [result.stdout, result.stderr]
-    .filter((value) => typeof value === "string" && value.trim().length > 0)
-    .join("\n")
-    .trim();
-
-  console.error(
-    `[startup] Prisma schema drift detected. Apply the pending migration before starting the app.\n` +
-      `Run: npx prisma migrate deploy\n`,
-  );
-
-  if (details) {
-    console.error(details);
-  }
-
-  process.exit(result.status ?? 1);
-}
 
 function getMode() {
   const mode = process.argv[2];
@@ -167,7 +117,6 @@ async function main() {
   const mode = getMode();
   const forwardedArgs = process.argv.slice(3);
   loadEnvConfig(process.cwd(), mode === "dev");
-  assertDatabaseSchemaIsCurrent(mode);
 
   const preferredPort = parsePort(process.env.PORT ?? DEFAULT_PORT);
   const resolvedPort = await resolvePort(preferredPort);
