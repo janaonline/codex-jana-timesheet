@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { saveWithRetry } from "@/lib/autosave";
 import { useToast } from "@/components/common/toast-provider";
+import { handleUnauthorizedApiClientError } from "@/lib/client-api";
 import { AUTOSAVE_INTERVAL_MS } from "@/lib/constants";
 
 export function useAutosave<T>({
@@ -95,6 +96,11 @@ export function useAutosave<T>({
         return savedValue;
       } catch (error) {
         setStatus("error");
+
+        if (handleUnauthorizedApiClientError(error)) {
+          throw error;
+        }
+
         pushToastRef.current({
           title:
             error instanceof Error

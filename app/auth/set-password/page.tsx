@@ -1,13 +1,13 @@
 import { redirect } from "next/navigation";
 
 import { SetPasswordScreen } from "@/components/auth/set-password-screen";
-import { getAppSession, getHomePathForRole } from "@/lib/auth";
+import { getAppSession, getHomePathForRole, getLoginPath } from "@/lib/auth";
 
 export default async function SetPasswordPage() {
   const session = await getAppSession();
 
   if (!session?.user || session.expiresByInactivity) {
-    redirect("/login");
+    redirect(getLoginPath(session));
   }
 
   if (!session.user.passwordSetupRequired) {

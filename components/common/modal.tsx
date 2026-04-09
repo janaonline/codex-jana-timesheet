@@ -7,11 +7,13 @@ export function Modal({
   title,
   children,
   onClose,
+  hideCloseButton = false,
 }: {
   open: boolean;
   title: string;
   children: React.ReactNode;
   onClose: () => void;
+  hideCloseButton?: boolean;
 }) {
   if (!open) {
     return null;
@@ -24,14 +26,16 @@ export function Modal({
           <div>
             <h2 className="text-xl font-semibold text-stone-900">{title}</h2>
           </div>
-          <button
-            className={cn(
-              "rounded-full border border-stone-200 px-3 py-1 text-sm text-stone-600 hover:bg-stone-100 focus:outline-none focus:ring-2 focus:ring-stone-200 focus:ring-offset-2",
-            )}
-            onClick={onClose}
-          >
-            Close
-          </button>
+          {hideCloseButton ? null : (
+            <button
+              className={cn(
+                "rounded-full border border-stone-200 px-3 py-1 text-sm text-stone-600 hover:bg-stone-100 focus:outline-none focus:ring-2 focus:ring-stone-200 focus:ring-offset-2",
+              )}
+              onClick={onClose}
+            >
+              Close
+            </button>
+          )}
         </div>
         {children}
       </div>

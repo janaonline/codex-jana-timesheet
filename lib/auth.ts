@@ -384,6 +384,10 @@ export function getHomePathForRole(role: UserRole) {
   return role === "PROGRAM_HEAD" ? "/dashboard" : "/admin";
 }
 
+export function getLoginPath(session?: Session | null) {
+  return session?.expiresByInactivity ? "/login?reason=session-expired" : "/login";
+}
+
 function assertSession(
   session: Session | null,
   requirement?: AppSessionRequirement,
@@ -422,7 +426,7 @@ export async function requireAppSession(requirement?: AppSessionRequirement) {
   } catch (error) {
     if (isAppError(error)) {
       if (error.code === "UNAUTHORIZED") {
-        redirect("/login");
+        redirect(getLoginPath(session));
       }
 
       if (error.code === "PASSWORD_SETUP_REQUIRED") {

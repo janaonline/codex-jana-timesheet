@@ -17,6 +17,11 @@ import { Textarea } from "@/components/common/textarea";
 import { useToast } from "@/components/common/toast-provider";
 import { RequestEditModal } from "@/components/timesheets/request-edit-modal";
 import { useAutosave } from "@/hooks/use-autosave";
+import {
+  ApiClientError,
+  handleUnauthorizedApiClientError,
+  parseJsonApiResponse,
+} from "@/lib/client-api";
 import { minutesToHours } from "@/lib/timesheet-calculations";
 import { formatDisplayDate } from "@/lib/time";
 import type { TimesheetView } from "@/services/timesheet-service";
@@ -65,16 +70,6 @@ type OverwriteState =
       payload: MonthFormState;
     };
 
-class ApiClientError extends Error {
-  constructor(
-    message: string,
-    public readonly code?: string,
-    public readonly details?: string[],
-  ) {
-    super(message);
-  }
-}
-
 function normalizeEditorState(timesheet: TimesheetView): EditorState {
   return {
     id: timesheet.id,
@@ -112,23 +107,7 @@ async function postJson<T>(url: string, init: RequestInit) {
       ...(init.headers ?? {}),
     },
   });
-  const payload = (await response.json()) as
-    | { ok: true; data: T }
-    | { ok: false; error: { code?: string; message: string; details?: string[] } };
-
-  if (!response.ok || !payload.ok) {
-    throw new ApiClientError(
-      !payload.ok && payload.error.details?.length
-        ? payload.error.details.join(" ")
-        : !payload.ok
-          ? payload.error.message
-          : "Request failed.",
-      !payload.ok ? payload.error.code : undefined,
-      !payload.ok ? payload.error.details : undefined,
-    );
-  }
-
-  return payload.data;
+  return parseJsonApiResponse<T>(response, "Request failed.");
 }
 
 function toCalendarSelection(day: TimesheetView["calendarDays"][number]): CalendarSelection {
@@ -299,6 +278,10 @@ export function TimesheetEditor({
   }
 
   function showError(error: unknown, fallback: string) {
+    if (handleUnauthorizedApiClientError(error)) {
+      return;
+    }
+
     pushToast({
       title: error instanceof Error ? error.message : fallback,
       tone: "error",
@@ -321,6 +304,10 @@ export function TimesheetEditor({
       setDraft(saved);
       setTimesheet(latestServerTimesheetRef.current);
     } catch (error) {
+      if (error instanceof ApiClientError) {
+        throw error;
+      }
+
       throw new ApiClientError(
         error instanceof Error ? error.message : "Unable to save the current draft.",
       );
