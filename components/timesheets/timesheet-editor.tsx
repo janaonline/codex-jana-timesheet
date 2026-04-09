@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { startOfWeek } from "date-fns";
 import { formatInTimeZone } from "date-fns-tz";
-import { startTransition, useMemo, useRef, useState } from "react";
+import { startTransition, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { Badge } from "@/components/common/badge";
@@ -22,13 +22,16 @@ import {
   handleUnauthorizedApiClientError,
   parseJsonApiResponse,
 } from "@/lib/client-api";
-import { minutesToHours } from "@/lib/timesheet-calculations";
+import { minutesToHours, normalizeHoursInputToMinutes } from "@/lib/timesheet-calculations";
 import { formatDisplayDate } from "@/lib/time";
 import type { TimesheetView } from "@/services/timesheet-service";
 
 type EditorEntry = Omit<TimesheetView["entries"][number], "hours"> & {
-  localId: string;
   hours: TimesheetView["entries"][number]["hours"] | "";
+  __uiId: string;
+  __isEntering: boolean;
+  __isRemoving: boolean;
+  __isIncompleteDraft: boolean;
 };
 
 type EditorState = {
@@ -36,6 +39,16 @@ type EditorState = {
   version: number;
   entries: EditorEntry[];
 };
+
+type EditorEntrySeed = Omit<
+  EditorEntry,
+  "__uiId" | "__isEntering" | "__isRemoving" | "__isIncompleteDraft"
+> &
+  Partial<
+    Pick<EditorEntry, "__uiId" | "__isEntering" | "__isRemoving" | "__isIncompleteDraft">
+  > & {
+    localId?: string;
+  };
 
 type EditorMode = "day" | "week" | "month";
 
@@ -70,18 +83,170 @@ type OverwriteState =
       payload: MonthFormState;
     };
 
+type ActiveMonthDateBounds = {
+  minDate: string;
+  maxDate: string;
+};
+
+type EntryTimerKind = "enter" | "remove";
+
+const ENTRY_ANIMATION_MS = 500;
+const ENTRY_ENTER_FRAME_MS = 20;
+
+function createEditorEntry(entry: EditorEntrySeed): EditorEntry {
+  return {
+    ...entry,
+    __uiId: entry.__uiId ?? entry.localId ?? entry.id,
+    __isEntering: entry.__isEntering ?? false,
+    __isRemoving: entry.__isRemoving ?? false,
+    __isIncompleteDraft: entry.__isIncompleteDraft ?? false,
+  };
+}
+
 function normalizeEditorState(timesheet: TimesheetView): EditorState {
   return {
     id: timesheet.id,
     version: timesheet.version,
-    entries: timesheet.entries.map((entry) => ({
-      ...entry,
-      localId: entry.id,
-    })),
+    entries: timesheet.entries.map((entry) => createEditorEntry(entry)),
   };
 }
 
-function getStoredDraftState(timesheetId: string, fallback: EditorState) {
+function isTempEntry(entry: Pick<EditorEntry, "id">) {
+  return entry.id.startsWith("temp-");
+}
+
+function isTempEntryReadyForSave(
+  entry: Pick<EditorEntry, "workDate" | "projectId" | "hours">,
+  activeMonthDateBounds: ActiveMonthDateBounds,
+) {
+  if (
+    !entry.workDate ||
+    entry.workDate < activeMonthDateBounds.minDate ||
+    entry.workDate > activeMonthDateBounds.maxDate
+  ) {
+    return false;
+  }
+
+  if (!entry.projectId || entry.hours === "") {
+    return false;
+  }
+
+  return normalizeHoursInputToMinutes(Number(entry.hours)).ok;
+}
+
+function syncIncompleteDraftFlag(
+  entry: EditorEntry,
+  activeMonthDateBounds: ActiveMonthDateBounds,
+) {
+  if (!isTempEntry(entry)) {
+    return entry.__isIncompleteDraft ? { ...entry, __isIncompleteDraft: false } : entry;
+  }
+
+  const nextIsIncompleteDraft = !isTempEntryReadyForSave(entry, activeMonthDateBounds);
+  return entry.__isIncompleteDraft === nextIsIncompleteDraft
+    ? entry
+    : {
+        ...entry,
+        __isIncompleteDraft: nextIsIncompleteDraft,
+      };
+}
+
+function normalizeDraftState(
+  state: EditorState,
+  activeMonthDateBounds: ActiveMonthDateBounds,
+) {
+  return {
+    ...state,
+    entries: state.entries.map((entry) =>
+      syncIncompleteDraftFlag(createEditorEntry(entry), activeMonthDateBounds),
+    ),
+  };
+}
+
+function isPersistableEntry(
+  entry: EditorEntry,
+  activeMonthDateBounds: ActiveMonthDateBounds,
+) {
+  if (entry.__isRemoving) {
+    return false;
+  }
+
+  if (!isTempEntry(entry)) {
+    return true;
+  }
+
+  return !entry.__isIncompleteDraft && isTempEntryReadyForSave(entry, activeMonthDateBounds);
+}
+
+function stripUiFields(entry: EditorEntry) {
+  return {
+    id: entry.id.startsWith("temp-") ? undefined : entry.id,
+    workDate: entry.workDate,
+    projectId: entry.projectId,
+    hours: Number(entry.hours),
+    description: entry.description,
+  };
+}
+
+function toPersistableEntries(
+  entries: EditorEntry[],
+  activeMonthDateBounds: ActiveMonthDateBounds,
+) {
+  return entries.filter((entry) => isPersistableEntry(entry, activeMonthDateBounds));
+}
+
+function mergeClientOnlyEntries(
+  serverState: EditorState,
+  localEntries: EditorEntry[],
+  activeMonthDateBounds: ActiveMonthDateBounds,
+) {
+  const clientOnlyEntries = localEntries.filter(
+    (entry) =>
+      entry.__isRemoving || !isPersistableEntry(entry, activeMonthDateBounds),
+  );
+
+  if (!clientOnlyEntries.length) {
+    return serverState;
+  }
+
+  return {
+    ...serverState,
+    entries: [...clientOnlyEntries, ...serverState.entries],
+  };
+}
+
+function getEntryKey(entry: EditorEntry) {
+  return entry.id || entry.__uiId;
+}
+
+function getEntryAnimationClass(entry: EditorEntry) {
+  const baseClassName =
+    "transition-[opacity,transform] duration-500 motion-reduce:transform-none motion-reduce:transition-opacity";
+
+  if (entry.__isRemoving) {
+    return `${baseClassName} ease-in-out opacity-0 -translate-y-2 pointer-events-none`;
+  }
+
+  if (entry.__isEntering) {
+    return `${baseClassName} ease-out opacity-0 -translate-y-2`;
+  }
+
+  return `${baseClassName} ease-out opacity-100 translate-y-0`;
+}
+
+function getEntryDisabledState(readOnly: boolean, entry: EditorEntry) {
+  return readOnly || entry.__isRemoving;
+}
+
+function getEntryRemoveLabel(entry: EditorEntry) {
+  return entry.__isRemoving ? "Removing..." : "Remove";
+}
+
+function getStoredDraftState(
+  timesheetId: string,
+  fallback: EditorState,
+  activeMonthDateBounds: ActiveMonthDateBounds,
+) {
   if (typeof window === "undefined") {
     return fallback;
   }
@@ -93,7 +258,23 @@ function getStoredDraftState(timesheetId: string, fallback: EditorState) {
     }
 
     const parsed = JSON.parse(rawValue) as { payload: EditorState; updatedAt: string };
-    return parsed.payload.version >= fallback.version ? parsed.payload : fallback;
+    if (parsed.payload.version < fallback.version) {
+      return fallback;
+    }
+
+    return normalizeDraftState(
+      {
+        ...parsed.payload,
+        entries: parsed.payload.entries.map((entry) =>
+          createEditorEntry({
+            ...entry,
+            __isEntering: false,
+            __isRemoving: false,
+          }),
+        ),
+      },
+      activeMonthDateBounds,
+    );
   } catch {
     return fallback;
   }
@@ -217,11 +398,17 @@ export function TimesheetEditor({
   const router = useRouter();
   const { pushToast } = useToast();
   const latestServerTimesheetRef = useRef(initialTimesheet);
+  const entryTimersRef = useRef<Map<string, Partial<Record<EntryTimerKind, number>>>>(new Map());
+  const initialActiveMonthDateBounds = getActiveMonthDateBounds(
+    initialTimesheet.calendarDays,
+    initialTimesheet.monthKey,
+  );
   const [timesheet, setTimesheet] = useState(initialTimesheet);
   const [draft, setDraft] = useState<EditorState>(() =>
     getStoredDraftState(
       initialTimesheet.id,
       normalizeEditorState(initialTimesheet),
+      initialActiveMonthDateBounds,
     ),
   );
   const [activeView, setActiveView] = useState<EditorMode>("day");
@@ -246,7 +433,11 @@ export function TimesheetEditor({
     () => getActiveMonthDateBounds(timesheet.calendarDays, timesheet.monthKey),
     [timesheet.calendarDays, timesheet.monthKey],
   );
-  const totalMinutes = draft.entries.reduce((sum, entry) => sum + entry.minutes, 0);
+  const activeEntries = useMemo(
+    () => draft.entries.filter((entry) => !entry.__isRemoving),
+    [draft.entries],
+  );
+  const totalMinutes = activeEntries.reduce((sum, entry) => sum + entry.minutes, 0);
   const totalHours = minutesToHours(totalMinutes);
   const completionPercentage =
     timesheet.assignedMinutes > 0
@@ -258,28 +449,45 @@ export function TimesheetEditor({
     timesheet.assignedMinutes > 0 && totalMinutes === timesheet.assignedMinutes;
   const readOnly = !timesheet.isEditable;
 
+  useEffect(() => {
+    const entryTimers = entryTimersRef.current;
+
+    return () => {
+      entryTimers.forEach((timers) => {
+        Object.values(timers).forEach((timerId) => {
+          if (typeof timerId === "number") {
+            window.clearTimeout(timerId);
+          }
+        });
+      });
+      entryTimers.clear();
+    };
+  }, []);
+
   const autosave = useAutosave({
     storageKey: `timesheet-draft:${timesheet.id}`,
     value: draft,
     async onSave(currentValue) {
+      const persistableEntries = toPersistableEntries(
+        currentValue.entries,
+        activeMonthDateBounds,
+      );
       const result = await postJson<{
         timesheet: TimesheetView;
       }>(`/api/v1/timesheets/${timesheet.id}`, {
         method: "PATCH",
         body: JSON.stringify({
           version: currentValue.version,
-          entries: currentValue.entries.map((entry) => ({
-            id: entry.id.startsWith("temp-") ? undefined : entry.id,
-            workDate: entry.workDate,
-            projectId: entry.projectId,
-            hours: Number(entry.hours),
-            description: entry.description,
-          })),
+          entries: persistableEntries.map(stripUiFields),
         }),
       });
 
       latestServerTimesheetRef.current = result.timesheet;
-      return normalizeEditorState(result.timesheet);
+      return mergeClientOnlyEntries(
+        normalizeEditorState(result.timesheet),
+        currentValue.entries,
+        activeMonthDateBounds,
+      );
     },
     onSaved(savedValue) {
       setDraft(savedValue);
@@ -297,7 +505,13 @@ export function TimesheetEditor({
   function applyServerTimesheet(nextTimesheet: TimesheetView) {
     latestServerTimesheetRef.current = nextTimesheet;
     setTimesheet(nextTimesheet);
-    setDraft(normalizeEditorState(nextTimesheet));
+    setDraft((current) =>
+      mergeClientOnlyEntries(
+        normalizeEditorState(nextTimesheet),
+        current.entries,
+        activeMonthDateBounds,
+      ),
+    );
   }
 
   function showError(error: unknown, fallback: string) {
@@ -337,29 +551,92 @@ export function TimesheetEditor({
     }
   }
 
-  function updateEntry(localId: string, field: keyof EditorEntry, value: string | number) {
+  function clearEntryTimer(entryUiId: string, kind: EntryTimerKind) {
+    const timers = entryTimersRef.current.get(entryUiId);
+    if (!timers) {
+      return;
+    }
+
+    const timerId = timers?.[kind];
+
+    if (typeof timerId !== "number") {
+      return;
+    }
+
+    window.clearTimeout(timerId);
+    delete timers[kind];
+
+    if (typeof timers.enter === "number" || typeof timers.remove === "number") {
+      entryTimersRef.current.set(entryUiId, timers);
+      return;
+    }
+
+    entryTimersRef.current.delete(entryUiId);
+  }
+
+  function setEntryTimer(entryUiId: string, kind: EntryTimerKind, timerId: number) {
+    const timers = entryTimersRef.current.get(entryUiId) ?? {};
+    timers[kind] = timerId;
+    entryTimersRef.current.set(entryUiId, timers);
+  }
+
+  function patchEntry(
+    entryUiId: string,
+    updater: (entry: EditorEntry) => EditorEntry,
+  ) {
     setDraft((current) => ({
       ...current,
       entries: current.entries.map((entry) =>
-        entry.localId === localId
-          ? {
-              ...entry,
-              [field]: value,
-              projectName:
-                field === "projectId"
-                  ? availableProjects.find((project) => project.id === value)?.name ?? ""
-                  : entry.projectName,
-              projectCode:
-                field === "projectId"
-                  ? availableProjects.find((project) => project.id === value)?.code ?? ""
-                  : entry.projectCode,
-            }
+        entry.__uiId === entryUiId ? updater(entry) : entry,
+      ),
+    }));
+  }
+
+  function settleEntry(entryUiId: string) {
+    clearEntryTimer(entryUiId, "enter");
+    const timerId = window.setTimeout(() => {
+      clearEntryTimer(entryUiId, "enter");
+      patchEntry(entryUiId, (entry) => ({
+        ...entry,
+        __isEntering: false,
+      }));
+    }, ENTRY_ENTER_FRAME_MS);
+    setEntryTimer(entryUiId, "enter", timerId);
+  }
+
+  function updateEntry(
+    entryUiId: string,
+    field: keyof Omit<
+      EditorEntry,
+      "__uiId" | "__isEntering" | "__isRemoving" | "__isIncompleteDraft"
+    >,
+    value: string | number,
+  ) {
+    setDraft((current) => ({
+      ...current,
+      entries: current.entries.map((entry) =>
+        entry.__uiId === entryUiId
+          ? syncIncompleteDraftFlag(
+              {
+                ...entry,
+                [field]: value,
+                projectName:
+                  field === "projectId"
+                    ? availableProjects.find((project) => project.id === value)?.name ?? ""
+                    : entry.projectName,
+                projectCode:
+                  field === "projectId"
+                    ? availableProjects.find((project) => project.id === value)?.code ?? ""
+                    : entry.projectCode,
+              },
+              activeMonthDateBounds,
+            )
           : entry,
       ),
     }));
   }
 
-  function updateWorkDate(localId: string, workDate: string) {
+  function updateWorkDate(entryUiId: string, workDate: string) {
     if (
       workDate &&
       (workDate < activeMonthDateBounds.minDate || workDate > activeMonthDateBounds.maxDate)
@@ -367,7 +644,7 @@ export function TimesheetEditor({
       return;
     }
 
-    updateEntry(localId, "workDate", workDate);
+    updateEntry(entryUiId, "workDate", workDate);
   }
 
   function addEntry() {
@@ -375,11 +652,9 @@ export function TimesheetEditor({
     setDraft((current) => ({
       ...current,
       entries: [
-        ...current.entries,
-        {
+        createEditorEntry({
           id: tempId,
-          localId: tempId,
-          workDate: activeMonthDateBounds.minDate,
+          workDate: "",
           projectId: "",
           projectCode: "",
           projectName: "",
@@ -389,16 +664,36 @@ export function TimesheetEditor({
           createdVia: "DAY",
           lastEditedVia: "DAY",
           entryType: "Manual Entry",
-        },
+          __uiId: tempId,
+          __isEntering: true,
+          __isIncompleteDraft: true,
+        }),
+        ...current.entries,
       ],
     }));
+    settleEntry(tempId);
   }
 
-  function deleteEntry(localId: string) {
-    setDraft((current) => ({
-      ...current,
-      entries: current.entries.filter((entry) => entry.localId !== localId),
-    }));
+  function deleteEntry(entryUiId: string) {
+    clearEntryTimer(entryUiId, "enter");
+    patchEntry(entryUiId, (entry) =>
+      entry.__isRemoving
+        ? entry
+        : {
+            ...entry,
+            __isEntering: false,
+            __isRemoving: true,
+          },
+    );
+    clearEntryTimer(entryUiId, "remove");
+    const timerId = window.setTimeout(() => {
+      clearEntryTimer(entryUiId, "remove");
+      setDraft((current) => ({
+        ...current,
+        entries: current.entries.filter((entry) => entry.__uiId !== entryUiId),
+      }));
+    }, ENTRY_ANIMATION_MS);
+    setEntryTimer(entryUiId, "remove", timerId);
   }
 
   async function handleSubmit() {
@@ -921,8 +1216,10 @@ export function TimesheetEditor({
           <div className="space-y-4 md:hidden">
             {draft.entries.map((entry, index) => (
               <div
-                key={entry.localId}
-                className="rounded-[28px] border border-stone-200 bg-stone-50 p-4"
+                key={getEntryKey(entry)}
+                className={`rounded-[28px] border border-stone-200 bg-stone-50 p-4 ${getEntryAnimationClass(
+                  entry,
+                )}`}
               >
                 <div className="mb-4 flex items-center justify-between gap-3">
                   <div>
@@ -932,8 +1229,12 @@ export function TimesheetEditor({
                     <p className="mt-1 text-sm text-stone-600">{entry.entryType}</p>
                   </div>
                   {!readOnly ? (
-                    <Button variant="ghost" onClick={() => deleteEntry(entry.localId)}>
-                      Remove
+                    <Button
+                      variant="ghost"
+                      disabled={entry.__isRemoving}
+                      onClick={() => deleteEntry(entry.__uiId)}
+                    >
+                      {getEntryRemoveLabel(entry)}
                     </Button>
                   ) : null}
                 </div>
@@ -946,8 +1247,8 @@ export function TimesheetEditor({
                       value={entry.workDate}
                       min={activeMonthDateBounds.minDate}
                       max={activeMonthDateBounds.maxDate}
-                      disabled={readOnly}
-                      onChange={(event) => updateWorkDate(entry.localId, event.target.value)}
+                      disabled={getEntryDisabledState(readOnly, entry)}
+                      onChange={(event) => updateWorkDate(entry.__uiId, event.target.value)}
                     />
                   </label>
                   <label className="text-sm font-medium text-stone-700">
@@ -955,9 +1256,9 @@ export function TimesheetEditor({
                     <Select
                       className="mt-2"
                       value={entry.projectId}
-                      disabled={readOnly}
+                      disabled={getEntryDisabledState(readOnly, entry)}
                       onChange={(event) =>
-                        updateEntry(entry.localId, "projectId", event.target.value)
+                        updateEntry(entry.__uiId, "projectId", event.target.value)
                       }
                     >
                       <option value="">Select sub-program</option>
@@ -976,10 +1277,10 @@ export function TimesheetEditor({
                       step="any"
                       min={0}
                       value={entry.hours}
-                      disabled={readOnly}
+                      disabled={getEntryDisabledState(readOnly, entry)}
                       onChange={(event) =>
                         updateEntry(
-                          entry.localId,
+                          entry.__uiId,
                           "hours",
                           event.target.value === "" ? "" : Number(event.target.value),
                         )
@@ -992,9 +1293,9 @@ export function TimesheetEditor({
                       className="mt-2"
                       rows={3}
                       value={entry.description}
-                      disabled={readOnly}
+                      disabled={getEntryDisabledState(readOnly, entry)}
                       onChange={(event) =>
-                        updateEntry(entry.localId, "description", event.target.value)
+                        updateEntry(entry.__uiId, "description", event.target.value)
                       }
                       placeholder="Required before final submission"
                     />
@@ -1018,23 +1319,26 @@ export function TimesheetEditor({
               </thead>
               <tbody>
                 {draft.entries.map((entry) => (
-                  <tr key={entry.localId} className="rounded-2xl bg-stone-50">
+                  <tr
+                    key={getEntryKey(entry)}
+                    className={`rounded-2xl bg-stone-50 ${getEntryAnimationClass(entry)}`}
+                  >
                     <td className="px-3 py-3">
                       <Input
                         type="date"
                         value={entry.workDate}
                         min={activeMonthDateBounds.minDate}
                         max={activeMonthDateBounds.maxDate}
-                        disabled={readOnly}
-                        onChange={(event) => updateWorkDate(entry.localId, event.target.value)}
+                        disabled={getEntryDisabledState(readOnly, entry)}
+                        onChange={(event) => updateWorkDate(entry.__uiId, event.target.value)}
                       />
                     </td>
                     <td className="px-3 py-3">
                       <Select
                         value={entry.projectId}
-                        disabled={readOnly}
+                        disabled={getEntryDisabledState(readOnly, entry)}
                         onChange={(event) =>
-                          updateEntry(entry.localId, "projectId", event.target.value)
+                          updateEntry(entry.__uiId, "projectId", event.target.value)
                         }
                       >
                         <option value="">Select sub-program</option>
@@ -1051,10 +1355,10 @@ export function TimesheetEditor({
                         step="any"
                         min={0}
                         value={entry.hours}
-                        disabled={readOnly}
+                        disabled={getEntryDisabledState(readOnly, entry)}
                         onChange={(event) =>
                           updateEntry(
-                            entry.localId,
+                            entry.__uiId,
                             "hours",
                             event.target.value === "" ? "" : Number(event.target.value),
                           )
@@ -1068,17 +1372,21 @@ export function TimesheetEditor({
                       <Textarea
                         rows={2}
                         value={entry.description}
-                        disabled={readOnly}
+                        disabled={getEntryDisabledState(readOnly, entry)}
                         onChange={(event) =>
-                          updateEntry(entry.localId, "description", event.target.value)
+                          updateEntry(entry.__uiId, "description", event.target.value)
                         }
                         placeholder="Required before final submission"
                       />
                     </td>
                     <td className="px-3 py-3">
                       {!readOnly ? (
-                        <Button variant="ghost" onClick={() => deleteEntry(entry.localId)}>
-                          Remove
+                        <Button
+                          variant="ghost"
+                          disabled={entry.__isRemoving}
+                          onClick={() => deleteEntry(entry.__uiId)}
+                        >
+                          {getEntryRemoveLabel(entry)}
                         </Button>
                       ) : null}
                     </td>

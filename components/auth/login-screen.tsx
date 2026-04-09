@@ -107,7 +107,7 @@ export function LoginScreen({
 
       setSessionExpiredOpen(false);
       router.replace(result?.url ?? "/login");
-      router.refresh();
+      // router.refresh();
     } finally {
       setLogoutPending(false);
     }
@@ -174,7 +174,7 @@ export function LoginScreen({
     }
 
     router.replace(result?.url ?? "/");
-    router.refresh();
+    // router.refresh();
   }
 
   async function handleOtpVerification(event: React.FormEvent<HTMLFormElement>) {
@@ -197,7 +197,7 @@ export function LoginScreen({
     }
 
     router.replace(result?.url ?? "/auth/set-password");
-    router.refresh();
+    // router.refresh();
   }
 
   return (

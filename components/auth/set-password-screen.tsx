@@ -103,7 +103,7 @@ export function SetPasswordScreen({
       await storeBrowserPasswordCredential(formRef.current!, email, password);
       setSuccess(true);
       router.replace(payload.redirectUrl || redirectUrl);
-      router.refresh();
+      // router.refresh();
     } catch (requestError) {
       if (handleUnauthorizedApiClientError(requestError)) {
         return;
