@@ -1,0 +1,44 @@
+import type { UserRole } from "@prisma/client";
+
+import { handleApiRoute } from "@/lib/api-route";
+import { apiSuccess, readJson } from "@/lib/response";
+import { requireInteger, requireNumber, requireString } from "@/lib/validators";
+import { applyWeekAllocation } from "@/services/timesheet-service";
+
+export async function POST(
+  request: Request,
+  context: { params: Promise<{ id: string }> },
+) {
+  return handleApiRoute(request, {
+    roles: ["PROGRAM_HEAD"],
+    requireOriginCheck: true,
+    actionName: "apply_timesheet_week_allocation",
+    handler: async (session) => {
+      const { id } = await context.params;
+      const body = (await readJson(request)) as {
+        version?: number;
+        projectId?: string;
+        totalHours?: number;
+        description?: string;
+        weekStartDate?: string;
+        confirmOverwrite?: boolean;
+      };
+
+      return apiSuccess(
+        await applyWeekAllocation({
+          timesheetId: id,
+          actor: {
+            userId: session!.user.id,
+            role: session!.user.role as UserRole,
+          },
+          version: requireInteger(body.version, "version"),
+          projectId: requireString(body.projectId, "projectId"),
+          totalHours: requireNumber(body.totalHours, "totalHours"),
+          description: requireString(body.description, "description"),
+          weekStartDate: requireString(body.weekStartDate, "weekStartDate"),
+          confirmOverwrite: Boolean(body.confirmOverwrite),
+        }),
+      );
+    },
+  });
+}

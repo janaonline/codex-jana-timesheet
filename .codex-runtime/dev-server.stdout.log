@@ -1,0 +1,15 @@
+
+> directors-timesheet-management-system@0.1.0 dev
+> node scripts/run-next.mjs dev
+
+[startup] dev server URL: http://localhost:3000
+   ▲ Next.js 15.5.14
+   - Local:        http://localhost:3000
+   - Network:      http://10.10.15.31:3000
+   - Environments: .env.local, .env
+
+ ✓ Starting...
+ ○ Compiling /instrumentation ...
+ ✓ Compiled /instrumentation in 2.6s (414 modules)
+ ✓ Ready in 8.4s
+ ○ Compiling /timesheets/[id] ...

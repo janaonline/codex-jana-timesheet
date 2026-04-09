@@ -37,7 +37,6 @@ export async function PATCH(
     handler: async (session) => {
       const { id } = await context.params;
       const body = (await readJson(request)) as {
-        leaveDays?: number;
         version?: number;
         entries?: Array<{
           id?: string;
@@ -54,7 +53,6 @@ export async function PATCH(
           userId: session!.user.id,
           role: session!.user.role as UserRole,
         },
-        leaveDays: requireInteger(body.leaveDays, "leaveDays"),
         version: requireInteger(body.version, "version"),
         entries: requireArray(body.entries, "entries"),
       });

@@ -6,11 +6,14 @@ import { getAppSession, getHomePathForRole } from "@/lib/auth";
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ view?: "login" | "activate" | "forgot" }>;
+  searchParams: Promise<{
+    view?: "login" | "activate" | "forgot";
+    reason?: "session-expired";
+  }>;
 }) {
   const [session, params] = await Promise.all([getAppSession(), searchParams]);
 
-  if (session?.user) {
+  if (session?.user && !session.expiresByInactivity) {
     if (session.user.passwordSetupRequired) {
       redirect("/auth/set-password");
     }
@@ -18,5 +21,12 @@ export default async function LoginPage({
     redirect(getHomePathForRole(session.user.role));
   }
 
-  return <LoginScreen defaultView={params.view ?? "login"} />;
+  return (
+    <LoginScreen
+      defaultView={params.view ?? "login"}
+      sessionExpired={
+        params.reason === "session-expired" || Boolean(session?.expiresByInactivity)
+      }
+    />
+  );
 }

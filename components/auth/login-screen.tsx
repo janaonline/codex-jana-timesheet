@@ -1,12 +1,13 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { signIn } from "next-auth/react";
+import { signIn, signOut } from "next-auth/react";
 import { useRouter } from "next/navigation";
 
 import { Button } from "@/components/common/button";
 import { Card } from "@/components/common/card";
 import { Input } from "@/components/common/input";
+import { Modal } from "@/components/common/modal";
 import {
   OTP_AUTH_PROVIDER_ID,
   PASSWORD_AUTH_PROVIDER_ID,
@@ -59,8 +60,10 @@ function getOtpHeading(purpose: OtpPurpose) {
 
 export function LoginScreen({
   defaultView = "login",
+  sessionExpired = false,
 }: {
   defaultView?: Exclude<AuthView, "verify-otp">;
+  sessionExpired?: boolean;
 }) {
   const router = useRouter();
   const [view, setView] = useState<AuthView>(defaultView);
@@ -72,6 +75,12 @@ export function LoginScreen({
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [cooldownSeconds, setCooldownSeconds] = useState(0);
+  const [sessionExpiredOpen, setSessionExpiredOpen] = useState(sessionExpired);
+  const [logoutPending, setLogoutPending] = useState(false);
+
+  useEffect(() => {
+    setSessionExpiredOpen(sessionExpired);
+  }, [sessionExpired]);
 
   useEffect(() => {
     if (view !== "verify-otp" || cooldownSeconds <= 0) {
@@ -86,6 +95,23 @@ export function LoginScreen({
   }, [view, cooldownSeconds]);
 
   const otpHeading = useMemo(() => getOtpHeading(otpPurpose), [otpPurpose]);
+
+  async function handleExpiredSessionLogout() {
+    setLogoutPending(true);
+
+    try {
+      const result = await signOut({
+        callbackUrl: "/login",
+        redirect: false,
+      });
+
+      setSessionExpiredOpen(false);
+      router.replace(result?.url ?? "/login");
+      // router.refresh();
+    } finally {
+      setLogoutPending(false);
+    }
+  }
 
   async function requestOtp(purpose: OtpPurpose) {
     setPending(true);
@@ -148,7 +174,7 @@ export function LoginScreen({
     }
 
     router.replace(result?.url ?? "/");
-    router.refresh();
+    // router.refresh();
   }
 
   async function handleOtpVerification(event: React.FormEvent<HTMLFormElement>) {
@@ -171,11 +197,30 @@ export function LoginScreen({
     }
 
     router.replace(result?.url ?? "/auth/set-password");
-    router.refresh();
+    // router.refresh();
   }
 
   return (
     <main className="min-h-screen bg-white px-4 py-8 text-stone-950 sm:px-6 lg:px-8">
+      <Modal
+        open={sessionExpiredOpen}
+        title="Session expired"
+        onClose={() => undefined}
+        hideCloseButton
+      >
+        <div className="space-y-4">
+          <p className="text-sm leading-6 text-stone-600">
+            Your session has expired due to inactivity. Log out to clear the expired
+            session and return to the sign-in screen.
+          </p>
+          <div className="flex justify-end">
+            <Button onClick={() => void handleExpiredSessionLogout()} disabled={logoutPending}>
+              {logoutPending ? "Logging out..." : "Log out"}
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
       <div className="mx-auto flex min-h-[calc(100vh-64px)] max-w-6xl flex-col justify-center gap-8 lg:grid lg:grid-cols-[1.05fr_0.95fr] lg:items-center">
         <section className="space-y-6">
           <div className="inline-flex rounded-full border border-stone-200 bg-stone-50 px-4 py-2 text-xs font-semibold uppercase tracking-[0.24em] text-stone-700">

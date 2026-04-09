@@ -65,6 +65,17 @@ async function buildHoursPdf(report: HoursUtilizationReport) {
     ...report.totalsBySubProgram.map(
       (item) => `${item.subProgramName} | ${item.totalHours} hours`,
     ),
+    "",
+    "Entry origin summary:",
+    ...report.entryOriginSummary.map(
+      (item) => `${item.entryType} | ${item.totalHours} hours | ${item.rowCount} rows`,
+    ),
+    "",
+    "Entry details:",
+    ...report.entryDetails.slice(0, 30).map(
+      (item) =>
+        `${item.directorName} | ${item.date} | ${item.subProgramName} | ${item.hours}h | ${item.entryType} | ${item.createdVia} -> ${item.lastEditedVia}`,
+    ),
   ]);
   return streamToBuffer(doc);
 }
@@ -126,6 +137,32 @@ function buildHoursCsv(report: HoursUtilizationReport) {
     [],
     ["Sub-program", "Total Hours"],
     ...report.totalsBySubProgram.map((item) => [item.subProgramName, item.totalHours]),
+    [],
+    ["Entry Type", "Total Hours", "Row Count"],
+    ...report.entryOriginSummary.map((item) => [
+      item.entryType,
+      item.totalHours,
+      item.rowCount,
+    ]),
+    [],
+    [
+      "Director",
+      "Date",
+      "Sub-program",
+      "Decimal Hours",
+      "Created Via",
+      "Last Edited Via",
+      "Entry Type",
+    ],
+    ...report.entryDetails.map((item) => [
+      item.directorName,
+      item.date,
+      item.subProgramName,
+      item.hours,
+      item.createdVia,
+      item.lastEditedVia,
+      item.entryType,
+    ]),
   ]);
 }
 

@@ -2,6 +2,10 @@
 
 import { Button } from "@/components/common/button";
 import { useToast } from "@/components/common/toast-provider";
+import {
+  createApiClientError,
+  handleUnauthorizedApiClientError,
+} from "@/lib/client-api";
 
 export function ReportExportActions({
   type,
@@ -23,7 +27,7 @@ export function ReportExportActions({
       });
 
       if (!response.ok) {
-        throw new Error("Export failed.");
+        throw await createApiClientError(response, "Export failed.");
       }
 
       const blob = await response.blob();
@@ -38,6 +42,10 @@ export function ReportExportActions({
       link.click();
       window.URL.revokeObjectURL(url);
     } catch (error) {
+      if (handleUnauthorizedApiClientError(error)) {
+        return;
+      }
+
       pushToast({
         title: error instanceof Error ? error.message : "Export failed.",
         tone: "error",

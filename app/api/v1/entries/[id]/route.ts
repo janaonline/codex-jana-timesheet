@@ -50,7 +50,6 @@ export async function PATCH(
           userId: session!.user.id,
           role: session!.user.role as UserRole,
         },
-        leaveDays: current.timesheet.leaveDays,
         version: current.timesheet.version,
         entries: current.timesheet.entries.map((entry) =>
           entry.id === id
@@ -92,7 +91,6 @@ export async function DELETE(
           userId: session!.user.id,
           role: session!.user.role as UserRole,
         },
-        leaveDays: current.timesheet.leaveDays,
         version: current.timesheet.version,
         entries: current.timesheet.entries.filter((entry) => entry.id !== id),
       });

@@ -6,6 +6,10 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/common/button";
 import { Card } from "@/components/common/card";
 import { Input } from "@/components/common/input";
+import {
+  handleUnauthorizedApiClientError,
+  parseJsonApiResponse,
+} from "@/lib/client-api";
 
 type SetPasswordResponse = {
   user: {
@@ -91,24 +95,20 @@ export function SetPasswordScreen({
           confirmPassword,
         }),
       });
-
-      const payload = (await response.json()) as
-        | { ok: true; data: SetPasswordResponse }
-        | { ok: false; error: { message: string; details?: string[] } };
-
-      if (!response.ok || !payload.ok) {
-        throw new Error(
-          payload.ok
-            ? "Unable to save your password."
-            : payload.error.details?.join(" ") || payload.error.message,
-        );
-      }
+      const payload = await parseJsonApiResponse<SetPasswordResponse>(
+        response,
+        "Unable to save your password.",
+      );
 
       await storeBrowserPasswordCredential(formRef.current!, email, password);
       setSuccess(true);
-      router.replace(payload.data.redirectUrl || redirectUrl);
-      router.refresh();
+      router.replace(payload.redirectUrl || redirectUrl);
+      // router.refresh();
     } catch (requestError) {
+      if (handleUnauthorizedApiClientError(requestError)) {
+        return;
+      }
+
       setError(
         requestError instanceof Error
           ? requestError.message

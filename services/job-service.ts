@@ -72,8 +72,8 @@ export async function runAutoSubmitJob(reference = new Date()) {
     if (
       isEligibleForAutoSubmit({
         status: view.status,
-        assignedHours: view.assignedHours,
-        totalHours: view.totalHours,
+        assignedMinutes: view.assignedMinutes,
+        totalMinutes: view.totalMinutes,
         monthKey: view.monthKey,
         reference,
       })

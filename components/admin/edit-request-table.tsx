@@ -7,6 +7,10 @@ import { Button } from "@/components/common/button";
 import { Modal } from "@/components/common/modal";
 import { Textarea } from "@/components/common/textarea";
 import { useToast } from "@/components/common/toast-provider";
+import {
+  handleUnauthorizedApiClientError,
+  parseJsonApiResponse,
+} from "@/lib/client-api";
 import { formatDisplayDate } from "@/lib/time";
 
 type EditRequestRow = {
@@ -28,19 +32,7 @@ async function apiAction(url: string, body?: Record<string, unknown>) {
     },
     body: JSON.stringify(body ?? {}),
   });
-  const payload = (await response.json()) as
-    | { ok: true; data: unknown }
-    | { ok: false; error: { message: string; details?: string[] } };
-
-  if (!response.ok || !payload.ok) {
-    throw new Error(
-      !payload.ok && payload.error.details?.length
-        ? payload.error.details.join(" ")
-        : !payload.ok
-          ? payload.error.message
-          : "Action failed.",
-    );
-  }
+  await parseJsonApiResponse(response, "Action failed.");
 }
 
 export function EditRequestTable({
@@ -59,6 +51,10 @@ export function EditRequestTable({
       setRequests((current) => current.filter((request) => request.id !== requestId));
       pushToast({ title: "Edit request approved.", tone: "success" });
     } catch (error) {
+      if (handleUnauthorizedApiClientError(error)) {
+        return;
+      }
+
       pushToast({
         title: error instanceof Error ? error.message : "Approval failed.",
         tone: "error",
@@ -82,6 +78,10 @@ export function EditRequestTable({
       setRejectionReason("");
       pushToast({ title: "Edit request rejected.", tone: "success" });
     } catch (error) {
+      if (handleUnauthorizedApiClientError(error)) {
+        return;
+      }
+
       pushToast({
         title: error instanceof Error ? error.message : "Rejection failed.",
         tone: "error",

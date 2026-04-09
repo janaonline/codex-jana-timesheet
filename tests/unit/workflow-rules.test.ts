@@ -2,6 +2,7 @@ import { addWorkingDaysFromNextBusinessDay, getReminderRun } from "@/lib/time";
 import {
   canEditTimesheet,
   canRequestEdit,
+  getTimesheetViewAvailability,
   isEligibleForAutoSubmit,
   isEligibleForReminder,
   shouldExpireEditWindow,
@@ -13,8 +14,8 @@ describe("workflow rules", () => {
     expect(
       isEligibleForAutoSubmit({
         status: "DRAFT",
-        assignedHours: 160,
-        totalHours: 160,
+        assignedMinutes: 9600,
+        totalMinutes: 9600,
         monthKey: "2026-02",
         reference: new Date("2026-03-04T18:30:00.000Z"),
       }),
@@ -23,8 +24,8 @@ describe("workflow rules", () => {
     expect(
       isEligibleForAutoSubmit({
         status: "DRAFT",
-        assignedHours: 160,
-        totalHours: 160,
+        assignedMinutes: 9600,
+        totalMinutes: 9600,
         monthKey: "2026-02",
         reference: new Date("2026-03-05T01:00:00+05:30"),
       }),
@@ -100,6 +101,33 @@ describe("workflow rules", () => {
         editWindowClosesAt: editableUntil,
       }),
     ).toBe(true);
+  });
+
+  it("limits reopened previous-month sheets to day view while keeping current drafts fully multi-mode", () => {
+    expect(
+      getTimesheetViewAvailability({
+        status: "EDIT_APPROVED",
+        monthKey: "2026-02",
+        reference: new Date("2026-03-12T18:00:00+05:30"),
+        editWindowClosesAt: new Date("2026-03-14T23:59:59+05:30"),
+      }),
+    ).toEqual({
+      day: true,
+      week: false,
+      month: false,
+    });
+
+    expect(
+      getTimesheetViewAvailability({
+        status: "DRAFT",
+        monthKey: "2026-03",
+        reference: new Date("2026-03-12T18:00:00+05:30"),
+      }),
+    ).toEqual({
+      day: true,
+      week: true,
+      month: true,
+    });
   });
 
   it("maps reminder schedules to the expected month context", () => {

@@ -11,7 +11,10 @@ export const AZURE_AUTH_PROVIDER_ID = "azure-ad";
 export const DEFAULT_RATE_LIMIT = 100;
 export const DEFAULT_RATE_LIMIT_WINDOW_MS = 60_000;
 export const AUTOSAVE_RETRY_DELAYS_MS = [500, 1_000, 2_000] as const;
+export const AUTOSAVE_INTERVAL_MS = 30_000;
 export const EMAIL_RETRY_DELAYS_MS = [1_000, 2_000, 4_000] as const;
+export const DEFAULT_TOAST_DURATION_MS = 4_000;
+export const ERROR_TOAST_DURATION_MS = 15_000;
 export const REQUEST_EDIT_REASON_LIMIT = 500;
 export const PASSWORD_MIN_LENGTH = 12;
 export const OTP_LENGTH = 6;
@@ -22,6 +25,10 @@ export const OTP_REQUEST_RATE_LIMIT = 5;
 export const OTP_REQUEST_RATE_LIMIT_WINDOW_MS = 15 * 60_000;
 export const OTP_VERIFY_RATE_LIMIT = 20;
 export const OTP_VERIFY_RATE_LIMIT_WINDOW_MS = 15 * 60_000;
+export const DAILY_CAPACITY_MINUTES = 480;
+export const HALF_DAY_CAPACITY_MINUTES = 240;
+export const MINIMUM_TIME_ENTRY_MINUTES = 10;
+export const HOUR_INPUT_NORMALIZATION_TOLERANCE_MINUTES = 2;
 export const DEFAULT_REMINDER_SCHEDULE = {
   currentMonthDraftDays: [25, 28],
   currentMonthSubmitDay: "last-day",
@@ -69,6 +76,12 @@ export const OTP_PURPOSES = [
   "ACCOUNT_ACTIVATION",
 ] as const;
 export type OtpPurpose = (typeof OTP_PURPOSES)[number];
+
+export const ENTRY_ORIGINS = ["DAY", "WEEK", "MONTH"] as const;
+export type EntryOrigin = (typeof ENTRY_ORIGINS)[number];
+
+export const LEAVE_TYPES = ["NONE", "HALF_DAY", "FULL_DAY"] as const;
+export type LeaveType = (typeof LEAVE_TYPES)[number];
 
 export type Permission =
   | "timesheets:read:self"
