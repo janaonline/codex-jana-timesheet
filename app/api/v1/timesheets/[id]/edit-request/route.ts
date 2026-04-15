@@ -1,6 +1,8 @@
+import { after } from "next/server";
 import type { UserRole } from "@prisma/client";
 
 import { handleApiRoute } from "@/lib/api-route";
+import { captureError } from "@/lib/observability";
 import { apiSuccess, readJson } from "@/lib/response";
 import { requireString } from "@/lib/validators";
 import { REQUEST_EDIT_REASON_LIMIT } from "@/lib/constants";
@@ -36,22 +38,30 @@ export async function POST(
         reason,
       });
 
-      const emailContext = await getTimesheetEmailContext(id);
-      await Promise.all(
-        result.approvers.map((approver) =>
-          sendEditRequestAlertMessage({
-            recipient: approver.email,
-            approverName: approver.name,
-            requesterName: emailContext.view.ownerName,
-            requesterUserId: emailContext.view.userId,
-            timesheetId: emailContext.view.id,
-            monthLabel: emailContext.view.monthLabel,
-            reason,
-            reviewUrl: emailContext.reviewUrl,
-            timesheetUrl: emailContext.timesheetUrl,
-          }),
-        ),
-      );
+      after(async () => {
+        try {
+          const emailContext = await getTimesheetEmailContext(id);
+          await Promise.all(
+            result.approvers.map((approver) =>
+              sendEditRequestAlertMessage({
+                recipient: approver.email,
+                approverName: approver.name,
+                requesterName: emailContext.view.ownerName,
+                requesterUserId: emailContext.view.userId,
+                timesheetId: emailContext.view.id,
+                monthLabel: emailContext.view.monthLabel,
+                reason,
+                reviewUrl: emailContext.reviewUrl,
+                timesheetUrl: emailContext.timesheetUrl,
+              }),
+            ),
+          );
+        } catch (error) {
+          await captureError("edit_request_email_failed", error, {
+            timesheetId: id,
+          });
+        }
+      });
 
       return apiSuccess(result, { status: 201 });
     },

@@ -707,7 +707,6 @@ export function TimesheetEditor({
       });
       pushToast({ title: "Timesheet submitted successfully.", tone: "success" });
       router.push(`/timesheets/${timesheet.id}/confirmation`);
-      router.refresh();
     } catch (error) {
       showError(error, "Submission failed.");
     }
@@ -715,15 +714,15 @@ export function TimesheetEditor({
 
   async function handleRequestEdit(reason: string) {
     try {
-      await trackAsyncActivity(() =>
-        postJson(`/api/v1/timesheets/${timesheet.id}/edit-request`, {
+      const result = await trackAsyncActivity(() =>
+        postJson<{ timesheet: TimesheetView }>(`/api/v1/timesheets/${timesheet.id}/edit-request`, {
           method: "POST",
           body: JSON.stringify({ reason }),
         }),
       );
       pushToast({ title: "Edit request submitted.", tone: "success" });
       setRequestEditOpen(false);
-      router.refresh();
+      applyServerTimesheet(result.timesheet);
     } catch (error) {
       showError(error, "Edit request failed.");
     }

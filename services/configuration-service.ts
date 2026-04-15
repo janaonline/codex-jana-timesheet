@@ -55,6 +55,16 @@ const DEFAULT_CONFIGURATION: SystemConfigurationView = {
   supportContactEmail: env.supportContactEmail,
 };
 
+const CONFIG_CACHE_TTL_MS = 60_000;
+
+let cachedConfiguration:
+  | {
+      value: SystemConfigurationView;
+      loadedAt: number;
+    }
+  | null = null;
+let pendingConfigurationPromise: Promise<SystemConfigurationView> | null = null;
+
 function normalizeReminderDays(raw: unknown): ReminderConfiguration {
   const fallback = DEFAULT_CONFIGURATION.reminderDays;
 
@@ -100,7 +110,24 @@ function normalizeEmailTemplates(raw: unknown): EmailTemplateConfiguration {
   ) as EmailTemplateConfiguration;
 }
 
-export async function getSystemConfiguration() {
+function normalizeConfigurationRecord(record: Awaited<ReturnType<typeof prisma.systemConfiguration.upsert>>) {
+  return {
+    id: record.id,
+    reminderDays: normalizeReminderDays(record.reminderDays),
+    autoSubmitDay: record.autoSubmitDay,
+    completionThreshold: record.completionThreshold,
+    inactivityTimeoutMins: record.inactivityTimeoutMins,
+    holidayCalendar: Array.isArray(record.holidayCalendar)
+      ? (record.holidayCalendar as string[])
+      : safeJsonParse<string[]>(JSON.stringify(record.holidayCalendar), []),
+    roleAccess: normalizeRoleAccess(record.roleAccess),
+    emailTemplates: normalizeEmailTemplates(record.emailTemplates),
+    notifyAdminOnAutoSubmit: record.notifyAdminOnAutoSubmit,
+    supportContactEmail: record.supportContactEmail,
+  } satisfies SystemConfigurationView;
+}
+
+async function loadSystemConfiguration() {
   const record = await prisma.systemConfiguration.upsert({
     where: { id: "default" },
     create: {
@@ -118,26 +145,34 @@ export async function getSystemConfiguration() {
     update: {},
   });
 
-  return {
-    id: record.id,
-    reminderDays: normalizeReminderDays(record.reminderDays),
-    autoSubmitDay: record.autoSubmitDay,
-    completionThreshold: record.completionThreshold,
-    inactivityTimeoutMins: record.inactivityTimeoutMins,
-    holidayCalendar: Array.isArray(record.holidayCalendar)
-      ? (record.holidayCalendar as string[])
-      : safeJsonParse<string[]>(JSON.stringify(record.holidayCalendar), []),
-    roleAccess: normalizeRoleAccess(record.roleAccess),
-    emailTemplates: normalizeEmailTemplates(record.emailTemplates),
-    notifyAdminOnAutoSubmit: record.notifyAdminOnAutoSubmit,
-    supportContactEmail: record.supportContactEmail,
-  } satisfies SystemConfigurationView;
+  const normalized = normalizeConfigurationRecord(record);
+  cachedConfiguration = {
+    value: normalized,
+    loadedAt: Date.now(),
+  };
+  return normalized;
+}
+
+export async function getSystemConfiguration() {
+  const now = Date.now();
+
+  if (cachedConfiguration && now - cachedConfiguration.loadedAt < CONFIG_CACHE_TTL_MS) {
+    return cachedConfiguration.value;
+  }
+
+  if (!pendingConfigurationPromise) {
+    pendingConfigurationPromise = loadSystemConfiguration().finally(() => {
+      pendingConfigurationPromise = null;
+    });
+  }
+
+  return pendingConfigurationPromise;
 }
 
 export async function updateSystemConfiguration(input: Partial<SystemConfigurationView>) {
   const current = await getSystemConfiguration();
 
-  return prisma.systemConfiguration.update({
+  const updated = await prisma.systemConfiguration.update({
     where: { id: current.id },
     data: {
       reminderDays: input.reminderDays ?? current.reminderDays,
@@ -153,6 +188,13 @@ export async function updateSystemConfiguration(input: Partial<SystemConfigurati
       supportContactEmail: input.supportContactEmail ?? current.supportContactEmail,
     },
   });
+
+  cachedConfiguration = {
+    value: normalizeConfigurationRecord(updated),
+    loadedAt: Date.now(),
+  };
+
+  return updated;
 }
 
 export function serializeRoleAccessForDisplay(roleAccess: RoleAccessMatrix) {

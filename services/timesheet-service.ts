@@ -173,6 +173,12 @@ export type DashboardData = {
   }>;
 };
 
+export type TimesheetWindowOption = {
+  id: string;
+  monthKey: string;
+  monthLabel: string;
+};
+
 function dateToIsoDate(date: Date) {
   return formatInTimeZone(date, "Asia/Kolkata", "yyyy-MM-dd");
 }
@@ -970,6 +976,29 @@ export async function listTimesheetsForUser(userId: string, reference = new Date
   return Promise.all(records.map((timesheet) => buildTimesheetView(timesheet, reference)));
 }
 
+async function getWindowTimesheetOptions(userId: string, reference = new Date()) {
+  const currentMonthKey = getMonthKey(reference);
+  const previousMonthKey = getPreviousMonthKey(reference);
+
+  const [currentTimesheet, previousTimesheet] = await Promise.all([
+    createOrRefreshTimesheet(userId, currentMonthKey, reference),
+    createOrRefreshTimesheet(userId, previousMonthKey, reference),
+  ]);
+
+  return [
+    {
+      id: currentTimesheet.id,
+      monthKey: currentMonthKey,
+      monthLabel: getMonthLabel(currentMonthKey),
+    },
+    {
+      id: previousTimesheet.id,
+      monthKey: previousMonthKey,
+      monthLabel: getMonthLabel(previousMonthKey),
+    },
+  ] satisfies TimesheetWindowOption[];
+}
+
 export async function getTimesheetForActor(
   timesheetId: string,
   actor: Actor,
@@ -980,7 +1009,7 @@ export async function getTimesheetForActor(
 
   const [projects, windowTimesheets, timesheetView] = await Promise.all([
     getAvailableProjects(),
-    listTimesheetsForUser(timesheet.userId, reference),
+    getWindowTimesheetOptions(timesheet.userId, reference),
     buildTimesheetView(timesheet, reference),
   ]);
 
@@ -991,14 +1020,18 @@ export async function getTimesheetForActor(
       code: project.code,
       name: project.name,
     })),
-    windowTimesheets: windowTimesheets
-      .filter((item) => [getMonthKey(reference), getPreviousMonthKey(reference)].includes(item.monthKey))
-      .map((item) => ({
-        id: item.id,
-        monthKey: item.monthKey,
-        monthLabel: item.monthLabel,
-      })),
+    windowTimesheets,
   };
+}
+
+export async function getTimesheetViewForActor(
+  timesheetId: string,
+  actor: Actor,
+  reference = new Date(),
+) {
+  const timesheet = await getTimesheetRecordOrThrow(timesheetId);
+  assertTimesheetAccess(timesheet, actor);
+  return buildTimesheetView(timesheet, reference);
 }
 
 export async function saveDraftTimesheet(params: {
@@ -1106,7 +1139,6 @@ export async function saveDraftTimesheet(params: {
 
   return {
     timesheet: await buildTimesheetView(updatedTimesheet, reference),
-    breakdownHtml: buildBreakdownHtml(updatedTimesheet),
   };
 }
 
@@ -1859,9 +1891,15 @@ export async function ensurePreviousMonthTimesheetsForAllProgramHeads(reference 
   return timesheets;
 }
 
-export async function getTimesheetEmailContext(timesheetId: string, reference = new Date()) {
+export async function getTimesheetEmailContext(timesheetId: string) {
   const timesheet = await getTimesheetRecordOrThrow(timesheetId);
-  const view = await buildTimesheetView(timesheet, reference);
+  const view = {
+    id: timesheet.id,
+    userId: timesheet.userId,
+    ownerName: timesheet.user.name,
+    ownerEmail: timesheet.user.email,
+    monthLabel: getMonthLabel(timesheet.monthKey),
+  };
 
   return {
     timesheet,

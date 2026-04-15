@@ -5,7 +5,7 @@ import { Button } from "@/components/common/button";
 import { Card } from "@/components/common/card";
 import { PortalShell } from "@/components/common/portal-shell";
 import { requireAppSession } from "@/lib/auth";
-import { getTimesheetForActor } from "@/services/timesheet-service";
+import { getTimesheetViewForActor } from "@/services/timesheet-service";
 
 export default async function ConfirmationPage({
   params,
@@ -14,7 +14,7 @@ export default async function ConfirmationPage({
 }) {
   const session = await requireAppSession();
   const { id } = await params;
-  const data = await getTimesheetForActor(id, {
+  const timesheet = await getTimesheetViewForActor(id, {
     userId: session.user.id,
     role: session.user.role,
   });
@@ -31,10 +31,10 @@ export default async function ConfirmationPage({
           Submission confirmation
         </p>
         <h2 className="text-4xl font-semibold text-stone-950">
-          {data.timesheet.monthLabel} timesheet submitted
+          {timesheet.monthLabel} timesheet submitted
         </h2>
-        <Badge tone={data.timesheet.status}>
-          {data.timesheet.status.replaceAll("_", " ")}
+        <Badge tone={timesheet.status}>
+          {timesheet.status.replaceAll("_", " ")}
         </Badge>
         <p className="text-sm leading-6 text-stone-600">
           Submission confirmation email has been queued. The timesheet is now locked and can
@@ -44,19 +44,19 @@ export default async function ConfirmationPage({
           <Card>
             <p className="text-xs uppercase tracking-[0.24em] text-stone-500">Recorded</p>
             <p className="mt-2 text-2xl font-semibold text-stone-950">
-              {data.timesheet.totalHours}h
+              {timesheet.totalHours}h
             </p>
           </Card>
           <Card>
             <p className="text-xs uppercase tracking-[0.24em] text-stone-500">Assigned</p>
             <p className="mt-2 text-2xl font-semibold text-stone-950">
-              {data.timesheet.assignedHours}h
+              {timesheet.assignedHours}h
             </p>
           </Card>
           <Card>
             <p className="text-xs uppercase tracking-[0.24em] text-stone-500">Completion</p>
             <p className="mt-2 text-2xl font-semibold text-stone-950">
-              {data.timesheet.completionPercentage}%
+              {timesheet.completionPercentage}%
             </p>
           </Card>
         </div>
@@ -64,7 +64,7 @@ export default async function ConfirmationPage({
           <Link href="/dashboard">
             <Button>Return to dashboard</Button>
           </Link>
-          <Link href={`/timesheets/${data.timesheet.id}`}>
+          <Link href={`/timesheets/${timesheet.id}`}>
             <Button variant="secondary">View timesheet</Button>
           </Link>
         </div>

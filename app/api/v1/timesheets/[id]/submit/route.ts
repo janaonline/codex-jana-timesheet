@@ -1,6 +1,8 @@
+import { after } from "next/server";
 import type { UserRole } from "@prisma/client";
 
 import { handleApiRoute } from "@/lib/api-route";
+import { captureError } from "@/lib/observability";
 import { apiSuccess } from "@/lib/response";
 import {
   getTimesheetEmailContext,
@@ -27,18 +29,26 @@ export async function POST(
         method: "manual",
       });
 
-      const emailContext = await getTimesheetEmailContext(id);
-      await sendSubmissionConfirmationMessage({
-        recipient: emailContext.view.ownerEmail,
-        userName: emailContext.view.ownerName,
-        userId: emailContext.view.userId,
-        timesheetId: emailContext.view.id,
-        monthLabel: emailContext.view.monthLabel,
-        submissionTimestamp: new Date().toISOString(),
-        submissionMethod: "manual",
-        totalHoursRecorded: result.totalHoursRecorded,
-        breakdownHtml: result.breakdownHtml,
-        requestEditUrl: emailContext.requestEditUrl,
+      after(async () => {
+        try {
+          const emailContext = await getTimesheetEmailContext(id);
+          await sendSubmissionConfirmationMessage({
+            recipient: emailContext.view.ownerEmail,
+            userName: emailContext.view.ownerName,
+            userId: emailContext.view.userId,
+            timesheetId: emailContext.view.id,
+            monthLabel: emailContext.view.monthLabel,
+            submissionTimestamp: new Date().toISOString(),
+            submissionMethod: "manual",
+            totalHoursRecorded: result.totalHoursRecorded,
+            breakdownHtml: result.breakdownHtml,
+            requestEditUrl: emailContext.requestEditUrl,
+          });
+        } catch (error) {
+          await captureError("submit_timesheet_email_failed", error, {
+            timesheetId: id,
+          });
+        }
       });
 
       return apiSuccess(result);
