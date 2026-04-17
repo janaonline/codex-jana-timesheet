@@ -1,9 +1,8 @@
 import { handleApiRoute } from "@/lib/api-route";
+import { runAfterResponse } from "@/lib/background-task";
 import { apiSuccess } from "@/lib/response";
-import {
-  approveEditRequest,
-  getTimesheetEmailContext,
-} from "@/services/timesheet-service";
+import { env } from "@/lib/env";
+import { approveEditRequest } from "@/services/timesheet-service";
 import { sendEditDecisionMessage } from "@/services/email-service";
 
 export async function POST(
@@ -20,17 +19,17 @@ export async function POST(
         editRequestId: id,
         approverUserId: session!.user.id,
       });
-
-      const emailContext = await getTimesheetEmailContext(result.timesheet.id);
-      await sendEditDecisionMessage({
-        recipient: emailContext.view.ownerEmail,
-        userName: emailContext.view.ownerName,
-        userId: emailContext.view.userId,
-        timesheetId: emailContext.view.id,
-        monthLabel: emailContext.view.monthLabel,
-        approved: true,
-        editableUntil: result.request.editableUntil,
-        timesheetUrl: emailContext.timesheetUrl,
+      runAfterResponse("approve_edit_request_email", async () => {
+        await sendEditDecisionMessage({
+          recipient: result.timesheet.ownerEmail,
+          userName: result.timesheet.ownerName,
+          userId: result.timesheet.userId,
+          timesheetId: result.timesheet.id,
+          monthLabel: result.timesheet.monthLabel,
+          approved: true,
+          editableUntil: result.request.editableUntil,
+          timesheetUrl: `${env.appBaseUrl}/timesheets/${result.timesheet.id}`,
+        });
       });
 
       return apiSuccess(result);

@@ -1,11 +1,10 @@
 import type { UserRole } from "@prisma/client";
 
+import { runAfterResponse } from "@/lib/background-task";
 import { handleApiRoute } from "@/lib/api-route";
+import { env } from "@/lib/env";
 import { apiSuccess } from "@/lib/response";
-import {
-  getTimesheetEmailContext,
-  submitTimesheet,
-} from "@/services/timesheet-service";
+import { submitTimesheet } from "@/services/timesheet-service";
 import { sendSubmissionConfirmationMessage } from "@/services/email-service";
 
 export async function POST(
@@ -26,19 +25,20 @@ export async function POST(
         },
         method: "manual",
       });
-
-      const emailContext = await getTimesheetEmailContext(id);
-      await sendSubmissionConfirmationMessage({
-        recipient: emailContext.view.ownerEmail,
-        userName: emailContext.view.ownerName,
-        userId: emailContext.view.userId,
-        timesheetId: emailContext.view.id,
-        monthLabel: emailContext.view.monthLabel,
-        submissionTimestamp: new Date().toISOString(),
-        submissionMethod: "manual",
-        totalHoursRecorded: result.totalHoursRecorded,
-        breakdownHtml: result.breakdownHtml,
-        requestEditUrl: emailContext.requestEditUrl,
+      runAfterResponse("submit_timesheet_confirmation_email", async () => {
+        await sendSubmissionConfirmationMessage({
+          recipient: result.timesheet.ownerEmail,
+          userName: result.timesheet.ownerName,
+          userId: result.timesheet.userId,
+          timesheetId: result.timesheet.id,
+          monthLabel: result.timesheet.monthLabel,
+          submissionTimestamp:
+            result.timesheet.submittedAt ?? new Date().toISOString(),
+          submissionMethod: "manual",
+          totalHoursRecorded: result.totalHoursRecorded,
+          breakdownHtml: result.breakdownHtml,
+          requestEditUrl: `${env.appBaseUrl}/timesheets/${result.timesheet.id}`,
+        });
       });
 
       return apiSuccess(result);
