@@ -432,6 +432,7 @@ export function TimesheetEditor({
   const { pushToast } = useToast();
   const { beginRouteTransition, runWithLoader } = useGlobalLoader();
   const latestServerTimesheetRef = useRef(initialTimesheet);
+  const saveSnapshotRef = useRef<EditorEntry[] | null>(null);
   const entryTimersRef = useRef<Map<string, Partial<Record<EntryTimerKind, number>>>>(new Map());
   const defaultProjectId = availableProjects[0]?.id ?? "";
   const initialActiveMonthDateBounds = getActiveMonthDateBounds(
@@ -506,6 +507,7 @@ export function TimesheetEditor({
     storageKey: `timesheet-draft:${timesheet.id}`,
     value: draft,
     async onSave(currentValue) {
+      saveSnapshotRef.current = currentValue.entries;
       const persistableEntries = toPersistableEntries(
         currentValue.entries,
         activeMonthDateBounds,
@@ -528,7 +530,18 @@ export function TimesheetEditor({
       );
     },
     onSaved(savedValue) {
-      setDraft(savedValue);
+      setDraft((current) => {
+        const snapshot = saveSnapshotRef.current;
+        const userEditedDuringFlight =
+          snapshot !== null &&
+          JSON.stringify(current.entries) !== JSON.stringify(snapshot);
+        if (userEditedDuringFlight) {
+          // Keep the user's in-progress entries; only advance the version so the
+          // next autosave sends the correct optimistic-concurrency token.
+          return { ...current, version: latestServerTimesheetRef.current.version };
+        }
+        return savedValue;
+      });
       startTransition(() => {
         setTimesheet(latestServerTimesheetRef.current);
       });
