@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { signIn, signOut } from "next-auth/react";
-import { useRouter } from "next/navigation";
 
 import { Button } from "@/components/common/button";
 import { Card } from "@/components/common/card";
@@ -65,7 +64,6 @@ export function LoginScreen({
   defaultView?: Exclude<AuthView, "verify-otp">;
   sessionExpired?: boolean;
 }) {
-  const router = useRouter();
   const [view, setView] = useState<AuthView>(defaultView);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -96,6 +94,10 @@ export function LoginScreen({
 
   const otpHeading = useMemo(() => getOtpHeading(otpPurpose), [otpPurpose]);
 
+  function replaceLocation(url: string) {
+    window.location.replace(url);
+  }
+
   async function handleExpiredSessionLogout() {
     setLogoutPending(true);
 
@@ -106,8 +108,7 @@ export function LoginScreen({
       });
 
       setSessionExpiredOpen(false);
-      router.replace(result?.url ?? "/login");
-      // router.refresh();
+      replaceLocation(result?.url ?? "/login");
     } finally {
       setLogoutPending(false);
     }
@@ -173,8 +174,7 @@ export function LoginScreen({
       return;
     }
 
-    router.replace(result?.url ?? "/");
-    // router.refresh();
+    replaceLocation(result?.url ?? "/");
   }
 
   async function handleOtpVerification(event: React.FormEvent<HTMLFormElement>) {
@@ -196,8 +196,7 @@ export function LoginScreen({
       return;
     }
 
-    router.replace(result?.url ?? "/auth/set-password");
-    // router.refresh();
+    replaceLocation(result?.url ?? "/auth/set-password");
   }
 
   return (

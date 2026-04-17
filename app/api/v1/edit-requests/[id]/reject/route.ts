@@ -1,11 +1,10 @@
 import { handleApiRoute } from "@/lib/api-route";
+import { runAfterResponse } from "@/lib/background-task";
 import { apiSuccess, readJson } from "@/lib/response";
+import { env } from "@/lib/env";
 import { requireString } from "@/lib/validators";
 import { REQUEST_EDIT_REASON_LIMIT } from "@/lib/constants";
-import {
-  getTimesheetEmailContext,
-  rejectEditRequest,
-} from "@/services/timesheet-service";
+import { rejectEditRequest } from "@/services/timesheet-service";
 import { sendEditDecisionMessage } from "@/services/email-service";
 
 export async function POST(
@@ -26,17 +25,17 @@ export async function POST(
         approverUserId: session!.user.id,
         reason,
       });
-
-      const emailContext = await getTimesheetEmailContext(result.timesheet.id);
-      await sendEditDecisionMessage({
-        recipient: emailContext.view.ownerEmail,
-        userName: emailContext.view.ownerName,
-        userId: emailContext.view.userId,
-        timesheetId: emailContext.view.id,
-        monthLabel: emailContext.view.monthLabel,
-        approved: false,
-        rejectionReason: reason,
-        timesheetUrl: emailContext.timesheetUrl,
+      runAfterResponse("reject_edit_request_email", async () => {
+        await sendEditDecisionMessage({
+          recipient: result.timesheet.ownerEmail,
+          userName: result.timesheet.ownerName,
+          userId: result.timesheet.userId,
+          timesheetId: result.timesheet.id,
+          monthLabel: result.timesheet.monthLabel,
+          approved: false,
+          rejectionReason: reason,
+          timesheetUrl: `${env.appBaseUrl}/timesheets/${result.timesheet.id}`,
+        });
       });
 
       return apiSuccess(result);

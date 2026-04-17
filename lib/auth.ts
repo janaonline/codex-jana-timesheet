@@ -27,6 +27,8 @@ type AzureProfile = {
   groups?: string[];
 };
 
+const USER_TOKEN_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
+
 type AppSessionRequirement =
   | UserRole[]
   | {
@@ -310,12 +312,19 @@ export const authOptions: NextAuthOptions = {
         token.azureGroups = Array.isArray(user.azureGroups)
           ? user.azureGroups
           : token.azureGroups ?? [];
+        token.lastUserSyncAt = now;
       }
 
       const email = typeof token.email === "string" ? token.email : undefined;
       const role = typeof token.role === "string" ? (token.role as UserRole) : undefined;
+      const shouldRefreshUser =
+        Boolean(email) &&
+        !user &&
+        (token.passwordSetupRequired === true ||
+          typeof token.lastUserSyncAt !== "number" ||
+          now - token.lastUserSyncAt > USER_TOKEN_REFRESH_INTERVAL_MS);
 
-      if (email) {
+      if (email && shouldRefreshUser) {
         const currentUser = await prisma.user.findUnique({
           where: { email },
           select: {
@@ -337,6 +346,7 @@ export const authOptions: NextAuthOptions = {
             passwordHash: currentUser.passwordHash,
             passwordResetRequired: currentUser.passwordResetRequired,
           });
+          token.lastUserSyncAt = now;
         }
       }
 

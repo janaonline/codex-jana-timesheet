@@ -1,13 +1,12 @@
 import type { UserRole } from "@prisma/client";
 
 import { handleApiRoute } from "@/lib/api-route";
+import { runAfterResponse } from "@/lib/background-task";
 import { apiSuccess, readJson } from "@/lib/response";
+import { env } from "@/lib/env";
 import { requireString } from "@/lib/validators";
 import { REQUEST_EDIT_REASON_LIMIT } from "@/lib/constants";
-import {
-  getTimesheetEmailContext,
-  requestEdit,
-} from "@/services/timesheet-service";
+import { requestEdit } from "@/services/timesheet-service";
 import { sendEditRequestAlertMessage } from "@/services/email-service";
 
 export async function POST(
@@ -35,23 +34,23 @@ export async function POST(
         },
         reason,
       });
-
-      const emailContext = await getTimesheetEmailContext(id);
-      await Promise.all(
-        result.approvers.map((approver) =>
-          sendEditRequestAlertMessage({
-            recipient: approver.email,
-            approverName: approver.name,
-            requesterName: emailContext.view.ownerName,
-            requesterUserId: emailContext.view.userId,
-            timesheetId: emailContext.view.id,
-            monthLabel: emailContext.view.monthLabel,
-            reason,
-            reviewUrl: emailContext.reviewUrl,
-            timesheetUrl: emailContext.timesheetUrl,
-          }),
-        ),
-      );
+      runAfterResponse("request_edit_alert_emails", async () => {
+        await Promise.all(
+          result.approvers.map((approver) =>
+            sendEditRequestAlertMessage({
+              recipient: approver.email,
+              approverName: approver.name,
+              requesterName: result.timesheet.ownerName,
+              requesterUserId: result.timesheet.userId,
+              timesheetId: result.timesheet.id,
+              monthLabel: result.timesheet.monthLabel,
+              reason,
+              reviewUrl: `${env.appBaseUrl}/admin/edit-requests`,
+              timesheetUrl: `${env.appBaseUrl}/timesheets/${result.timesheet.id}`,
+            }),
+          ),
+        );
+      });
 
       return apiSuccess(result, { status: 201 });
     },

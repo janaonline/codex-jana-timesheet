@@ -1,3 +1,5 @@
+import { Prisma } from "@prisma/client";
+
 import { prisma } from "@/lib/prisma";
 import {
   DEFAULT_REMINDER_SCHEDULE,
@@ -55,6 +57,16 @@ const DEFAULT_CONFIGURATION: SystemConfigurationView = {
   supportContactEmail: env.supportContactEmail,
 };
 
+const CONFIG_CACHE_TTL_MS = 30_000;
+
+let cachedSystemConfiguration:
+  | {
+      value: SystemConfigurationView;
+      expiresAt: number;
+    }
+  | null = null;
+let inFlightSystemConfiguration: Promise<SystemConfigurationView> | null = null;
+
 function normalizeReminderDays(raw: unknown): ReminderConfiguration {
   const fallback = DEFAULT_CONFIGURATION.reminderDays;
 
@@ -100,24 +112,18 @@ function normalizeEmailTemplates(raw: unknown): EmailTemplateConfiguration {
   ) as EmailTemplateConfiguration;
 }
 
-export async function getSystemConfiguration() {
-  const record = await prisma.systemConfiguration.upsert({
-    where: { id: "default" },
-    create: {
-      id: DEFAULT_CONFIGURATION.id,
-      reminderDays: DEFAULT_CONFIGURATION.reminderDays,
-      autoSubmitDay: DEFAULT_CONFIGURATION.autoSubmitDay,
-      completionThreshold: DEFAULT_CONFIGURATION.completionThreshold,
-      inactivityTimeoutMins: DEFAULT_CONFIGURATION.inactivityTimeoutMins,
-      holidayCalendar: DEFAULT_CONFIGURATION.holidayCalendar,
-      roleAccess: DEFAULT_CONFIGURATION.roleAccess,
-      emailTemplates: DEFAULT_CONFIGURATION.emailTemplates,
-      notifyAdminOnAutoSubmit: DEFAULT_CONFIGURATION.notifyAdminOnAutoSubmit,
-      supportContactEmail: DEFAULT_CONFIGURATION.supportContactEmail,
-    },
-    update: {},
-  });
-
+function toSystemConfigurationView(record: {
+  id: string;
+  reminderDays: unknown;
+  autoSubmitDay: number;
+  completionThreshold: number;
+  inactivityTimeoutMins: number;
+  holidayCalendar: unknown;
+  roleAccess: unknown;
+  emailTemplates: unknown;
+  notifyAdminOnAutoSubmit: boolean;
+  supportContactEmail: string;
+}) {
   return {
     id: record.id,
     reminderDays: normalizeReminderDays(record.reminderDays),
@@ -134,10 +140,94 @@ export async function getSystemConfiguration() {
   } satisfies SystemConfigurationView;
 }
 
+function cacheSystemConfiguration(value: SystemConfigurationView) {
+  cachedSystemConfiguration = {
+    value,
+    expiresAt: Date.now() + CONFIG_CACHE_TTL_MS,
+  };
+
+  return value;
+}
+
+function invalidateSystemConfigurationCache() {
+  cachedSystemConfiguration = null;
+  inFlightSystemConfiguration = null;
+}
+
+async function createDefaultSystemConfigurationRecord() {
+  try {
+    return await prisma.systemConfiguration.create({
+      data: {
+        id: DEFAULT_CONFIGURATION.id,
+        reminderDays: DEFAULT_CONFIGURATION.reminderDays,
+        autoSubmitDay: DEFAULT_CONFIGURATION.autoSubmitDay,
+        completionThreshold: DEFAULT_CONFIGURATION.completionThreshold,
+        inactivityTimeoutMins: DEFAULT_CONFIGURATION.inactivityTimeoutMins,
+        holidayCalendar: DEFAULT_CONFIGURATION.holidayCalendar,
+        roleAccess: DEFAULT_CONFIGURATION.roleAccess,
+        emailTemplates: DEFAULT_CONFIGURATION.emailTemplates,
+        notifyAdminOnAutoSubmit: DEFAULT_CONFIGURATION.notifyAdminOnAutoSubmit,
+        supportContactEmail: DEFAULT_CONFIGURATION.supportContactEmail,
+      },
+    });
+  } catch (error) {
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === "P2002"
+    ) {
+      const existing = await prisma.systemConfiguration.findUnique({
+        where: { id: DEFAULT_CONFIGURATION.id },
+      });
+
+      if (existing) {
+        return existing;
+      }
+    }
+
+    throw error;
+  }
+}
+
+async function readSystemConfigurationRecord() {
+  const existing = await prisma.systemConfiguration.findUnique({
+    where: { id: DEFAULT_CONFIGURATION.id },
+  });
+
+  if (existing) {
+    return existing;
+  }
+
+  return createDefaultSystemConfigurationRecord();
+}
+
+export async function getSystemConfiguration() {
+  if (
+    cachedSystemConfiguration &&
+    cachedSystemConfiguration.expiresAt > Date.now()
+  ) {
+    return cachedSystemConfiguration.value;
+  }
+
+  if (inFlightSystemConfiguration) {
+    return inFlightSystemConfiguration;
+  }
+
+  inFlightSystemConfiguration = (async () => {
+    const record = await readSystemConfigurationRecord();
+    return cacheSystemConfiguration(toSystemConfigurationView(record));
+  })();
+
+  try {
+    return await inFlightSystemConfiguration;
+  } finally {
+    inFlightSystemConfiguration = null;
+  }
+}
+
 export async function updateSystemConfiguration(input: Partial<SystemConfigurationView>) {
   const current = await getSystemConfiguration();
 
-  return prisma.systemConfiguration.update({
+  const updated = await prisma.systemConfiguration.update({
     where: { id: current.id },
     data: {
       reminderDays: input.reminderDays ?? current.reminderDays,
@@ -153,6 +243,9 @@ export async function updateSystemConfiguration(input: Partial<SystemConfigurati
       supportContactEmail: input.supportContactEmail ?? current.supportContactEmail,
     },
   });
+
+  invalidateSystemConfigurationCache();
+  return cacheSystemConfiguration(toSystemConfigurationView(updated));
 }
 
 export function serializeRoleAccessForDisplay(roleAccess: RoleAccessMatrix) {

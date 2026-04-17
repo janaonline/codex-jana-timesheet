@@ -1,7 +1,6 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { useRouter } from "next/navigation";
 
 import { Button } from "@/components/common/button";
 import { Card } from "@/components/common/card";
@@ -71,13 +70,16 @@ export function SetPasswordScreen({
   email: string;
   redirectUrl: string;
 }) {
-  const router = useRouter();
   const formRef = useRef<HTMLFormElement | null>(null);
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+
+  function replaceLocation(url: string) {
+    window.location.replace(url);
+  }
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -102,8 +104,7 @@ export function SetPasswordScreen({
 
       await storeBrowserPasswordCredential(formRef.current!, email, password);
       setSuccess(true);
-      router.replace(payload.redirectUrl || redirectUrl);
-      // router.refresh();
+      replaceLocation(payload.redirectUrl || redirectUrl);
     } catch (requestError) {
       if (handleUnauthorizedApiClientError(requestError)) {
         return;

@@ -978,11 +978,22 @@ export async function getTimesheetForActor(
   const timesheet = await getTimesheetRecordOrThrow(timesheetId);
   assertTimesheetAccess(timesheet, actor);
 
-  const [projects, windowTimesheets, timesheetView] = await Promise.all([
+  const [projects, windowTimesheets] = await Promise.all([
     getAvailableProjects(),
-    listTimesheetsForUser(timesheet.userId, reference),
-    buildTimesheetView(timesheet, reference),
+    ensureWindowTimesheets(timesheet.userId, reference),
   ]);
+  const timesheetView =
+    timesheet.id === windowTimesheets.currentTimesheet.id
+      ? windowTimesheets.currentTimesheet
+      : timesheet.id === windowTimesheets.previousTimesheet.id
+        ? windowTimesheets.previousTimesheet
+        : await buildTimesheetView(timesheet, reference);
+  const selectableWindowTimesheets = [
+    windowTimesheets.currentTimesheet,
+    windowTimesheets.previousTimesheet,
+  ].filter(
+    (item, index, items) => items.findIndex((candidate) => candidate.id === item.id) === index,
+  );
 
   return {
     timesheet: timesheetView,
@@ -991,8 +1002,7 @@ export async function getTimesheetForActor(
       code: project.code,
       name: project.name,
     })),
-    windowTimesheets: windowTimesheets
-      .filter((item) => [getMonthKey(reference), getPreviousMonthKey(reference)].includes(item.monthKey))
+    windowTimesheets: selectableWindowTimesheets
       .map((item) => ({
         id: item.id,
         monthKey: item.monthKey,
@@ -1788,10 +1798,30 @@ export async function expireApprovedEditWindows(reference = new Date()) {
 }
 
 export async function getDashboardData(userId: string, reference = new Date()) {
-  const [currentWindow, history] = await Promise.all([
-    ensureWindowTimesheets(userId, reference),
-    listTimesheetsForUser(userId, reference),
+  const currentWindow = await ensureWindowTimesheets(userId, reference);
+  const historyRecords = await prisma.timesheet.findMany({
+    where: { userId },
+    include: timesheetInclude,
+    orderBy: { monthStart: "desc" },
+    take: 12,
+  });
+  const viewCache = new Map<string, TimesheetView>([
+    [currentWindow.currentTimesheet.id, currentWindow.currentTimesheet],
+    [currentWindow.previousTimesheet.id, currentWindow.previousTimesheet],
   ]);
+  const history = await Promise.all(
+    historyRecords.map(async (timesheet) => {
+      const cachedView = viewCache.get(timesheet.id);
+
+      if (cachedView) {
+        return cachedView;
+      }
+
+      const nextView = await buildTimesheetView(timesheet, reference);
+      viewCache.set(nextView.id, nextView);
+      return nextView;
+    }),
+  );
 
   const allocationSource = currentWindow.currentTimesheet.entries.length
     ? currentWindow.currentTimesheet.entries
