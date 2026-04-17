@@ -1,6 +1,5 @@
-import Link from "next/link";
-
 import { Button } from "@/components/common/button";
+import { GlobalLoaderLink } from "@/components/common/global-loader-link";
 
 export default function ForbiddenPage() {
   return (
@@ -12,9 +11,9 @@ export default function ForbiddenPage() {
           Route protection and RBAC are enforced according to the timesheet system&apos;s
           role model.
         </p>
-        <Link href="/">
+        <GlobalLoaderLink href="/" loaderMessage="Returning to portal...">
           <Button className="mt-6">Return to portal</Button>
-        </Link>
+        </GlobalLoaderLink>
       </div>
     </main>
   );

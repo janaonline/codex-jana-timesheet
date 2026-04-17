@@ -28,7 +28,7 @@ export type TimesheetValidationMode = "draft" | "submit";
 export type TimesheetDayStateInput = {
   workDate: string;
   leaveType: LeaveType;
-  isPersonalNonWorkingDay: boolean;
+  isManualHoliday: boolean;
 };
 
 export type CalendarDay = {
@@ -37,7 +37,7 @@ export type CalendarDay = {
   isSystemHoliday: boolean;
   isWithinEmploymentWindow: boolean;
   leaveType: LeaveType;
-  isPersonalNonWorkingDay: boolean;
+  isManualHoliday: boolean;
   baseCapacityMinutes: number;
   capacityMinutes: number;
 };
@@ -77,7 +77,7 @@ function normalizeDayStates(dayStates: TimesheetDayStateInput[]) {
     stateByDate.set(state.workDate, {
       workDate: state.workDate,
       leaveType: state.leaveType,
-      isPersonalNonWorkingDay: state.isPersonalNonWorkingDay,
+      isManualHoliday: state.isManualHoliday,
     });
   }
 
@@ -171,7 +171,7 @@ export function deriveLegacyDayStates(params: {
     states.push({
       workDate: availableDates[index],
       leaveType: "FULL_DAY",
-      isPersonalNonWorkingDay: false,
+      isManualHoliday: false,
     });
   }
 
@@ -179,7 +179,7 @@ export function deriveLegacyDayStates(params: {
     states.push({
       workDate: availableDates[fullDays],
       leaveType: "HALF_DAY",
-      isPersonalNonWorkingDay: false,
+      isManualHoliday: false,
     });
   }
 
@@ -213,12 +213,12 @@ export function buildCalendarDays(params: {
     const state = stateByDate.get(workDate) ?? {
       workDate,
       leaveType: "NONE" as LeaveType,
-      isPersonalNonWorkingDay: false,
+      isManualHoliday: false,
     };
 
     let capacityMinutes = baseCapacityMinutes;
     if (baseCapacityMinutes > 0) {
-      if (state.isPersonalNonWorkingDay || state.leaveType === "FULL_DAY") {
+      if (state.isManualHoliday || state.leaveType === "FULL_DAY") {
         capacityMinutes = 0;
       } else if (state.leaveType === "HALF_DAY") {
         capacityMinutes = HALF_DAY_CAPACITY_MINUTES;
@@ -231,7 +231,7 @@ export function buildCalendarDays(params: {
       isSystemHoliday,
       isWithinEmploymentWindow,
       leaveType: state.leaveType,
-      isPersonalNonWorkingDay: state.isPersonalNonWorkingDay,
+      isManualHoliday: state.isManualHoliday,
       baseCapacityMinutes,
       capacityMinutes,
     } satisfies CalendarDay;
@@ -338,17 +338,17 @@ export function validateDayStateInput(
   calendarDay: CalendarDay,
   nextState: TimesheetDayStateInput,
 ) {
-  if (nextState.isPersonalNonWorkingDay && nextState.leaveType !== "NONE") {
+  if (nextState.isManualHoliday && nextState.leaveType !== "NONE") {
     throw new AppError(
       "INVALID_DAY_STATE",
       400,
-      "A date cannot be both leave and a Personal Non-Working Day.",
+      "A date cannot be both leave and a Holiday.",
     );
   }
 
   if (
     calendarDay.baseCapacityMinutes === 0 &&
-    (nextState.leaveType !== "NONE" || nextState.isPersonalNonWorkingDay)
+    (nextState.leaveType !== "NONE" || nextState.isManualHoliday)
   ) {
     throw new AppError(
       "INVALID_DAY_STATE",

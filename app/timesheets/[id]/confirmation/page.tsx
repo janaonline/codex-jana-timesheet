@@ -1,8 +1,7 @@
-import Link from "next/link";
-
 import { Badge } from "@/components/common/badge";
 import { Button } from "@/components/common/button";
 import { Card } from "@/components/common/card";
+import { GlobalLoaderLink } from "@/components/common/global-loader-link";
 import { PortalShell } from "@/components/common/portal-shell";
 import { requireAppSession } from "@/lib/auth";
 import { getTimesheetForActor } from "@/services/timesheet-service";
@@ -61,12 +60,15 @@ export default async function ConfirmationPage({
           </Card>
         </div>
         <div className="flex gap-3">
-          <Link href="/dashboard">
+          <GlobalLoaderLink href="/dashboard" loaderMessage="Returning to dashboard...">
             <Button>Return to dashboard</Button>
-          </Link>
-          <Link href={`/timesheets/${data.timesheet.id}`}>
+          </GlobalLoaderLink>
+          <GlobalLoaderLink
+            href={`/timesheets/${data.timesheet.id}`}
+            loaderMessage="Loading timesheet..."
+          >
             <Button variant="secondary">View timesheet</Button>
-          </Link>
+          </GlobalLoaderLink>
         </div>
       </Card>
     </PortalShell>

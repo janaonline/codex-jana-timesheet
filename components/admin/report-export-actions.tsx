@@ -1,6 +1,7 @@
 "use client";
 
 import { Button } from "@/components/common/button";
+import { useGlobalLoader } from "@/components/common/global-loader-provider";
 import { useToast } from "@/components/common/toast-provider";
 import {
   createApiClientError,
@@ -15,15 +16,21 @@ export function ReportExportActions({
   monthKey?: string;
 }) {
   const { pushToast } = useToast();
+  const { runWithLoader } = useGlobalLoader();
 
   async function download(format: "pdf" | "csv") {
     try {
-      const response = await fetch("/api/v1/reports/export", {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-        },
-        body: JSON.stringify({ type, format, monthKey }),
+      const response = await runWithLoader({
+        mode: "blocking",
+        message: `Exporting ${format.toUpperCase()} report...`,
+        operation: () =>
+          fetch("/api/v1/reports/export", {
+            method: "POST",
+            headers: {
+              "content-type": "application/json",
+            },
+            body: JSON.stringify({ type, format, monthKey }),
+          }),
       });
 
       if (!response.ok) {

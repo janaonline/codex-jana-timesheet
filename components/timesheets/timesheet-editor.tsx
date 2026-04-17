@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { startOfWeek } from "date-fns";
 import { formatInTimeZone } from "date-fns-tz";
 import { startTransition, useEffect, useMemo, useRef, useState } from "react";
@@ -9,6 +8,8 @@ import { useRouter } from "next/navigation";
 import { Badge } from "@/components/common/badge";
 import { Button } from "@/components/common/button";
 import { Card } from "@/components/common/card";
+import { GlobalLoaderLink } from "@/components/common/global-loader-link";
+import { useGlobalLoader } from "@/components/common/global-loader-provider";
 import { Input } from "@/components/common/input";
 import { Modal } from "@/components/common/modal";
 import { ProgressBar } from "@/components/common/progress-bar";
@@ -22,6 +23,19 @@ import {
   handleUnauthorizedApiClientError,
   parseJsonApiResponse,
 } from "@/lib/client-api";
+import {
+  formatDayUtilization,
+  isExactlyUtilized,
+  sumMinutesByWorkDate,
+} from "@/lib/timesheet-calendar-display";
+import {
+  appendAllocationForm,
+  createMonthAllocationForm,
+  createWeekAllocationForm,
+  removeAllocationForm,
+  type MonthAllocationFormState,
+  type WeekAllocationFormState,
+} from "@/lib/timesheet-allocation-forms";
 import { minutesToHours, normalizeHoursInputToMinutes } from "@/lib/timesheet-calculations";
 import { formatDisplayDate } from "@/lib/time";
 import type { TimesheetView } from "@/services/timesheet-service";
@@ -56,32 +70,24 @@ type CalendarSelection =
   | "NONE"
   | "HALF_DAY"
   | "FULL_DAY"
-  | "PERSONAL_NON_WORKING_DAY";
-
-type WeekFormState = {
-  weekStartDate: string;
-  projectId: string;
-  totalHours: string;
-  description: string;
-};
-
-type MonthFormState = {
-  projectId: string;
-  totalHours: string;
-  description: string;
-};
+  | "HOLIDAY";
 
 type OverwriteState =
   | {
       kind: "week";
       details: string[];
-      payload: WeekFormState;
+      payload: WeekAllocationFormState;
     }
   | {
       kind: "month";
       details: string[];
-      payload: MonthFormState;
+      payload: MonthAllocationFormState;
     };
+
+type HolidayConfirmationState = {
+  workDate: string;
+  details: string[];
+};
 
 type ActiveMonthDateBounds = {
   minDate: string;
@@ -199,10 +205,13 @@ function mergeClientOnlyEntries(
   serverState: EditorState,
   localEntries: EditorEntry[],
   activeMonthDateBounds: ActiveMonthDateBounds,
+  excludedWorkDates: string[] = [],
 ) {
+  const excludedWorkDateSet = new Set(excludedWorkDates);
   const clientOnlyEntries = localEntries.filter(
     (entry) =>
-      entry.__isRemoving || !isPersistableEntry(entry, activeMonthDateBounds),
+      !excludedWorkDateSet.has(entry.workDate) &&
+      (entry.__isRemoving || !isPersistableEntry(entry, activeMonthDateBounds)),
   );
 
   if (!clientOnlyEntries.length) {
@@ -292,11 +301,35 @@ async function postJson<T>(url: string, init: RequestInit) {
 }
 
 function toCalendarSelection(day: TimesheetView["calendarDays"][number]): CalendarSelection {
-  if (day.isPersonalNonWorkingDay) {
-    return "PERSONAL_NON_WORKING_DAY";
+  if (day.isManualHoliday) {
+    return "HOLIDAY";
   }
 
   return day.leaveType;
+}
+
+function getCalendarStateLabel(day: TimesheetView["calendarDays"][number]) {
+  if (day.isSystemHoliday) {
+    return "System Holiday";
+  }
+
+  if (day.isWeekend) {
+    return "Weekend";
+  }
+
+  if (day.isManualHoliday) {
+    return "Holiday";
+  }
+
+  if (day.leaveType === "FULL_DAY") {
+    return "Full Day Leave";
+  }
+
+  if (day.leaveType === "HALF_DAY") {
+    return "Half Day Leave";
+  }
+
+  return "Working Day";
 }
 
 function formatHoursValue(hours: number) {
@@ -372,8 +405,8 @@ function summarizeDateStates(timesheet: TimesheetView) {
         summary.halfDayLeaves += 1;
       }
 
-      if (state.isPersonalNonWorkingDay) {
-        summary.personalNonWorkingDays += 1;
+      if (state.isManualHoliday) {
+        summary.manualHolidays += 1;
       }
 
       return summary;
@@ -381,7 +414,7 @@ function summarizeDateStates(timesheet: TimesheetView) {
     {
       fullDayLeaves: 0,
       halfDayLeaves: 0,
-      personalNonWorkingDays: 0,
+      manualHolidays: 0,
     },
   );
 }
@@ -397,8 +430,10 @@ export function TimesheetEditor({
 }) {
   const router = useRouter();
   const { pushToast } = useToast();
+  const { beginRouteTransition, runWithLoader } = useGlobalLoader();
   const latestServerTimesheetRef = useRef(initialTimesheet);
   const entryTimersRef = useRef<Map<string, Partial<Record<EntryTimerKind, number>>>>(new Map());
+  const defaultProjectId = availableProjects[0]?.id ?? "";
   const initialActiveMonthDateBounds = getActiveMonthDateBounds(
     initialTimesheet.calendarDays,
     initialTimesheet.monthKey,
@@ -412,21 +447,18 @@ export function TimesheetEditor({
     ),
   );
   const [activeView, setActiveView] = useState<EditorMode>("day");
+  const [isCalendarExpanded, setIsCalendarExpanded] = useState(true);
   const [requestEditOpen, setRequestEditOpen] = useState(false);
   const [calendarSavingDate, setCalendarSavingDate] = useState<string | null>(null);
+  const [holidayConfirmationState, setHolidayConfirmationState] =
+    useState<HolidayConfirmationState | null>(null);
   const [overwriteState, setOverwriteState] = useState<OverwriteState | null>(null);
-  const [pendingActivityCount, setPendingActivityCount] = useState(0);
-  const [weekForm, setWeekForm] = useState<WeekFormState>({
-    weekStartDate: "",
-    projectId: availableProjects[0]?.id ?? "",
-    totalHours: "",
-    description: "",
-  });
-  const [monthForm, setMonthForm] = useState<MonthFormState>({
-    projectId: availableProjects[0]?.id ?? "",
-    totalHours: "",
-    description: "",
-  });
+  const [weekForms, setWeekForms] = useState<WeekAllocationFormState[]>(() => [
+    createWeekAllocationForm("week-0", defaultProjectId),
+  ]);
+  const [monthForms, setMonthForms] = useState<MonthAllocationFormState[]>(() => [
+    createMonthAllocationForm("month-0", defaultProjectId),
+  ]);
   const weekOptions = useMemo(() => buildWeekOptions(timesheet.calendarDays), [timesheet.calendarDays]);
   const dateStateSummary = useMemo(() => summarizeDateStates(timesheet), [timesheet]);
   const activeMonthDateBounds = useMemo(
@@ -437,14 +469,20 @@ export function TimesheetEditor({
     () => draft.entries.filter((entry) => !entry.__isRemoving),
     [draft.entries],
   );
+  const dailyRecordedMinutes = useMemo(
+    () => sumMinutesByWorkDate(activeEntries),
+    [activeEntries],
+  );
   const totalMinutes = activeEntries.reduce((sum, entry) => sum + entry.minutes, 0);
   const totalHours = minutesToHours(totalMinutes);
+  const selectableCalendarDayCount = useMemo(
+    () => timesheet.calendarDays.filter((day) => day.baseCapacityMinutes > 0).length,
+    [timesheet.calendarDays],
+  );
   const completionPercentage =
     timesheet.assignedMinutes > 0
       ? Number(((totalMinutes / timesheet.assignedMinutes) * 100).toFixed(2))
       : 0;
-  const remainingMinutes = Math.max(0, timesheet.assignedMinutes - totalMinutes);
-  const remainingHours = minutesToHours(remainingMinutes);
   const isExactlyComplete =
     timesheet.assignedMinutes > 0 && totalMinutes === timesheet.assignedMinutes;
   const readOnly = !timesheet.isEditable;
@@ -496,13 +534,8 @@ export function TimesheetEditor({
       });
     },
   });
-  const isLoading = pendingActivityCount > 0 || autosave.status === "saving";
-  const loadingLabel =
-    autosave.status === "saving"
-      ? "Saving latest changes..."
-      : "Loading latest timesheet data...";
 
-  function applyServerTimesheet(nextTimesheet: TimesheetView) {
+  function applyServerTimesheet(nextTimesheet: TimesheetView, excludedWorkDates: string[] = []) {
     latestServerTimesheetRef.current = nextTimesheet;
     setTimesheet(nextTimesheet);
     setDraft((current) =>
@@ -510,6 +543,7 @@ export function TimesheetEditor({
         normalizeEditorState(nextTimesheet),
         current.entries,
         activeMonthDateBounds,
+        excludedWorkDates,
       ),
     );
   }
@@ -523,16 +557,6 @@ export function TimesheetEditor({
       title: error instanceof Error ? error.message : fallback,
       tone: "error",
     });
-  }
-
-  async function trackAsyncActivity<T>(operation: () => Promise<T>) {
-    setPendingActivityCount((current) => current + 1);
-
-    try {
-      return await operation();
-    } finally {
-      setPendingActivityCount((current) => Math.max(0, current - 1));
-    }
   }
 
   async function flushDayDraft() {
@@ -674,6 +698,70 @@ export function TimesheetEditor({
     settleEntry(tempId);
   }
 
+  function addWeekForm() {
+    setWeekForms((current) =>
+      appendAllocationForm(
+        current,
+        createWeekAllocationForm(`week-${crypto.randomUUID()}`, defaultProjectId),
+      ),
+    );
+  }
+
+  function updateWeekForm(
+    rowId: string,
+    field: keyof Omit<WeekAllocationFormState, "id">,
+    value: string,
+  ) {
+    setWeekForms((current) =>
+      current.map((row) =>
+        row.id === rowId
+          ? {
+              ...row,
+              [field]: value,
+            }
+          : row,
+      ),
+    );
+  }
+
+  function removeWeekForm(rowId: string) {
+    setWeekForms((current) =>
+      current.length > 1 ? removeAllocationForm(current, rowId) : current,
+    );
+  }
+
+  function addMonthForm() {
+    setMonthForms((current) =>
+      appendAllocationForm(
+        current,
+        createMonthAllocationForm(`month-${crypto.randomUUID()}`, defaultProjectId),
+      ),
+    );
+  }
+
+  function updateMonthForm(
+    rowId: string,
+    field: keyof Omit<MonthAllocationFormState, "id">,
+    value: string,
+  ) {
+    setMonthForms((current) =>
+      current.map((row) =>
+        row.id === rowId
+          ? {
+              ...row,
+              [field]: value,
+            }
+          : row,
+      ),
+    );
+  }
+
+  function removeMonthForm(rowId: string) {
+    setMonthForms((current) =>
+      current.length > 1 ? removeAllocationForm(current, rowId) : current,
+    );
+  }
+
   function deleteEntry(entryUiId: string) {
     clearEntryTimer(entryUiId, "enter");
     patchEntry(entryUiId, (entry) =>
@@ -698,14 +786,19 @@ export function TimesheetEditor({
 
   async function handleSubmit() {
     try {
-      await trackAsyncActivity(async () => {
-        await flushDayDraft();
-        await postJson(`/api/v1/timesheets/${timesheet.id}/submit`, {
-          method: "POST",
-          body: JSON.stringify({}),
-        });
+      await runWithLoader({
+        mode: "blocking",
+        message: "Submitting timesheet...",
+        operation: async () => {
+          await flushDayDraft();
+          await postJson(`/api/v1/timesheets/${timesheet.id}/submit`, {
+            method: "POST",
+            body: JSON.stringify({}),
+          });
+        },
       });
       pushToast({ title: "Timesheet submitted successfully.", tone: "success" });
+      beginRouteTransition("Loading confirmation...");
       router.push(`/timesheets/${timesheet.id}/confirmation`);
       router.refresh();
     } catch (error) {
@@ -715,12 +808,15 @@ export function TimesheetEditor({
 
   async function handleRequestEdit(reason: string) {
     try {
-      await trackAsyncActivity(() =>
-        postJson(`/api/v1/timesheets/${timesheet.id}/edit-request`, {
-          method: "POST",
-          body: JSON.stringify({ reason }),
-        }),
-      );
+      await runWithLoader({
+        mode: "blocking",
+        message: "Submitting edit request...",
+        operation: () =>
+          postJson(`/api/v1/timesheets/${timesheet.id}/edit-request`, {
+            method: "POST",
+            body: JSON.stringify({ reason }),
+          }),
+      });
       pushToast({ title: "Edit request submitted.", tone: "success" });
       setRequestEditOpen(false);
       router.refresh();
@@ -732,63 +828,91 @@ export function TimesheetEditor({
   async function handleCalendarSelection(
     workDate: string,
     selection: CalendarSelection,
+    confirmEntryClear = false,
   ) {
     try {
       setCalendarSavingDate(workDate);
-      await trackAsyncActivity(async () => {
-        await flushDayDraft();
-        const result = await postJson<{ timesheet: TimesheetView }>(
-          `/api/v1/timesheets/${timesheet.id}/calendar`,
-          {
-            method: "PATCH",
-            body: JSON.stringify({
-              version: latestServerTimesheetRef.current.version,
-              updates: [
-                {
-                  workDate,
-                  leaveType:
-                    selection === "PERSONAL_NON_WORKING_DAY" ? "NONE" : selection,
-                  isPersonalNonWorkingDay:
-                    selection === "PERSONAL_NON_WORKING_DAY",
-                },
-              ],
-            }),
-          },
-        );
-        applyServerTimesheet(result.timesheet);
+      await runWithLoader({
+        mode: "blocking",
+        message: "Updating calendar...",
+        operation: async () => {
+          await flushDayDraft();
+          const result = await postJson<{ timesheet: TimesheetView }>(
+            `/api/v1/timesheets/${timesheet.id}/calendar`,
+            {
+              method: "PATCH",
+              body: JSON.stringify({
+                version: latestServerTimesheetRef.current.version,
+                updates: [
+                  {
+                    workDate,
+                    leaveType: selection === "HOLIDAY" ? "NONE" : selection,
+                    isManualHoliday: selection === "HOLIDAY",
+                    confirmEntryClear,
+                  },
+                ],
+              }),
+            },
+          );
+          applyServerTimesheet(
+            result.timesheet,
+            selection === "HOLIDAY" ? [workDate] : [],
+          );
+        },
       });
+      setHolidayConfirmationState(null);
       pushToast({ title: "Calendar updated.", tone: "success" });
     } catch (error) {
+      if (
+        error instanceof ApiClientError &&
+        error.code === "HOLIDAY_CONFIRMATION_REQUIRED" &&
+        selection === "HOLIDAY" &&
+        !confirmEntryClear
+      ) {
+        setHolidayConfirmationState({
+          workDate,
+          details: error.details ?? [],
+        });
+        return;
+      }
+
       showError(error, "Unable to update the calendar.");
     } finally {
       setCalendarSavingDate(null);
     }
   }
 
-  async function handleWeekApply(confirmOverwrite = false) {
+  async function handleWeekApply(
+    weekForm: WeekAllocationFormState,
+    confirmOverwrite = false,
+  ) {
     const payload = {
       ...weekForm,
       weekStartDate: weekForm.weekStartDate || weekOptions[0]?.weekStartDate || "",
     };
 
     try {
-      await trackAsyncActivity(async () => {
-        await flushDayDraft();
-        const result = await postJson<{ timesheet: TimesheetView }>(
-          `/api/v1/timesheets/${timesheet.id}/apply-week`,
-          {
-            method: "POST",
-            body: JSON.stringify({
-              version: latestServerTimesheetRef.current.version,
-              projectId: payload.projectId,
-              totalHours: Number(payload.totalHours),
-              description: payload.description,
-              weekStartDate: payload.weekStartDate,
-              confirmOverwrite,
-            }),
-          },
-        );
-        applyServerTimesheet(result.timesheet);
+      await runWithLoader({
+        mode: "blocking",
+        message: "Applying week allocation...",
+        operation: async () => {
+          await flushDayDraft();
+          const result = await postJson<{ timesheet: TimesheetView }>(
+            `/api/v1/timesheets/${timesheet.id}/apply-week`,
+            {
+              method: "POST",
+              body: JSON.stringify({
+                version: latestServerTimesheetRef.current.version,
+                projectId: payload.projectId,
+                totalHours: Number(payload.totalHours),
+                description: payload.description,
+                weekStartDate: payload.weekStartDate,
+                confirmOverwrite,
+              }),
+            },
+          );
+          applyServerTimesheet(result.timesheet);
+        },
       });
       setOverwriteState(null);
       pushToast({ title: "Week allocation applied.", tone: "success" });
@@ -809,24 +933,31 @@ export function TimesheetEditor({
     }
   }
 
-  async function handleMonthApply(confirmOverwrite = false) {
+  async function handleMonthApply(
+    monthForm: MonthAllocationFormState,
+    confirmOverwrite = false,
+  ) {
     try {
-      await trackAsyncActivity(async () => {
-        await flushDayDraft();
-        const result = await postJson<{ timesheet: TimesheetView }>(
-          `/api/v1/timesheets/${timesheet.id}/apply-month`,
-          {
-            method: "POST",
-            body: JSON.stringify({
-              version: latestServerTimesheetRef.current.version,
-              projectId: monthForm.projectId,
-              totalHours: Number(monthForm.totalHours),
-              description: monthForm.description,
-              confirmOverwrite,
-            }),
-          },
-        );
-        applyServerTimesheet(result.timesheet);
+      await runWithLoader({
+        mode: "blocking",
+        message: "Applying month allocation...",
+        operation: async () => {
+          await flushDayDraft();
+          const result = await postJson<{ timesheet: TimesheetView }>(
+            `/api/v1/timesheets/${timesheet.id}/apply-month`,
+            {
+              method: "POST",
+              body: JSON.stringify({
+                version: latestServerTimesheetRef.current.version,
+                projectId: monthForm.projectId,
+                totalHours: Number(monthForm.totalHours),
+                description: monthForm.description,
+                confirmOverwrite,
+              }),
+            },
+          );
+          applyServerTimesheet(result.timesheet);
+        },
       });
       setOverwriteState(null);
       pushToast({ title: "Month allocation applied.", tone: "success" });
@@ -855,11 +986,11 @@ export function TimesheetEditor({
 
   return (
     <div className="space-y-6 pb-8">
-      {isLoading ? (
+      {autosave.status === "saving" ? (
         <div className="pointer-events-none fixed right-4 top-4 z-50">
           <div className="inline-flex items-center gap-3 rounded-full border border-stone-200 bg-white/95 px-4 py-2 text-sm font-medium text-stone-700 shadow-[0_18px_40px_-28px_rgba(17,17,17,0.35)] backdrop-blur">
             <span className="h-4 w-4 animate-spin rounded-full border-2 border-stone-300 border-t-stone-700" />
-            <span>{loadingLabel}</span>
+            <span>Saving latest changes...</span>
           </div>
         </div>
       ) : null}
@@ -891,13 +1022,61 @@ export function TimesheetEditor({
             </Button>
             <Button
               className="w-full sm:w-auto"
-              onClick={() =>
-                overwriteState?.kind === "week"
-                  ? void handleWeekApply(true)
-                  : void handleMonthApply(true)
-              }
+              onClick={() => {
+                if (!overwriteState) {
+                  return;
+                }
+
+                if (overwriteState.kind === "week") {
+                  void handleWeekApply(overwriteState.payload, true);
+                  return;
+                }
+
+                void handleMonthApply(overwriteState.payload, true);
+              }}
             >
               Confirm replacement
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal
+        open={Boolean(holidayConfirmationState)}
+        title="Apply Holiday?"
+        onClose={() => setHolidayConfirmationState(null)}
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-stone-600">
+            Applying Holiday will clear the recorded entries for this date only before the
+            zero-capacity day is saved.
+          </p>
+          <div className="rounded-[24px] border border-stone-200 bg-stone-50 px-4 py-4 text-sm text-stone-700">
+            {(holidayConfirmationState?.details ?? []).map((detail) => (
+              <p key={detail}>{detail}</p>
+            ))}
+          </div>
+          <div className="grid gap-3 sm:flex sm:justify-end">
+            <Button
+              className="w-full sm:w-auto"
+              variant="secondary"
+              onClick={() => setHolidayConfirmationState(null)}
+            >
+              Cancel
+            </Button>
+            <Button
+              className="w-full sm:w-auto"
+              onClick={() =>
+                holidayConfirmationState
+                  ? void handleCalendarSelection(
+                      holidayConfirmationState.workDate,
+                      "HOLIDAY",
+                      true,
+                    )
+                  : undefined
+              }
+            >
+              Confirm holiday
             </Button>
           </div>
         </div>
@@ -923,9 +1102,10 @@ export function TimesheetEditor({
           </div>
           <div className="flex gap-3 overflow-x-auto pb-1">
             {windowTimesheets.map((item) => (
-              <Link
+              <GlobalLoaderLink
                 key={item.id}
                 href={`/timesheets/${item.id}`}
+                loaderMessage="Loading timesheet..."
                 className={`shrink-0 rounded-full border px-4 py-2 text-sm font-semibold transition ${
                   item.id === timesheet.id
                     ? "border-amber-300 bg-amber-300 text-stone-950"
@@ -933,270 +1113,342 @@ export function TimesheetEditor({
                 }`}
               >
                 {item.monthLabel}
-              </Link>
+              </GlobalLoaderLink>
             ))}
           </div>
         </div>
 
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          <Card className="border-amber-200 bg-amber-50">
-            <p className="text-xs uppercase tracking-[0.26em] text-stone-500">Recorded hours</p>
-            <p className="mt-3 text-3xl font-semibold text-stone-950">{formatHoursValue(totalHours)}</p>
-          </Card>
-          <Card>
-            <p className="text-xs uppercase tracking-[0.26em] text-stone-500">Assigned hours</p>
-            <p className="mt-3 text-3xl font-semibold text-stone-950">
-              {formatHoursValue(timesheet.assignedHours)}
-            </p>
-          </Card>
-          <Card>
-            <p className="text-xs uppercase tracking-[0.26em] text-stone-500">Remaining hours</p>
-            <p className="mt-3 text-3xl font-semibold text-stone-950">{formatHoursValue(remainingHours)}</p>
-          </Card>
-          <Card>
-            <p className="text-xs uppercase tracking-[0.26em] text-stone-500">Auto-save</p>
-            <p className="mt-3 text-lg font-semibold text-stone-950">
-              {autosave.status === "saving"
-                ? "Saving..."
-                : autosave.status === "saved"
-                  ? "Saved"
-                  : autosave.status === "error"
-                    ? "Save failed"
-                    : "Idle"}
-            </p>
-          </Card>
-        </div>
-
-        <ProgressBar value={completionPercentage} label={`Completion: ${completionPercentage}%`} />
-
         <div className="grid gap-4 lg:grid-cols-[1fr_1fr]">
           <div className="rounded-[24px] border border-dashed border-stone-300 bg-stone-50 px-4 py-4 text-sm text-stone-600">
             Assigned hours now come from per-date capacity. Weekends, system holidays,
-            full-day leave, half-day leave, and Personal Non-Working Days all affect the
-            total automatically.
+            full-day leave, half-day leave, and Holidays all affect the total
+            automatically.
           </div>
           <div className="rounded-[24px] border border-stone-200 bg-white px-4 py-4 text-sm text-stone-700">
             <p className="font-semibold text-stone-900">Date-state summary</p>
             <p className="mt-2">Full-day leave: {dateStateSummary.fullDayLeaves}</p>
             <p>Half-day leave: {dateStateSummary.halfDayLeaves}</p>
-            <p>Personal Non-Working Days: {dateStateSummary.personalNonWorkingDays}</p>
+            <p>Holidays: {dateStateSummary.manualHolidays}</p>
           </div>
         </div>
       </Card>
 
       <Card className="space-y-4">
-        <div className="flex flex-wrap gap-2">
-          {viewTabs
-            .filter((tab) => tab.enabled)
-            .map((tab) => (
-              <button
-                key={tab.key}
-                type="button"
-                className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
-                  activeView === tab.key
-                    ? "bg-amber-300 text-stone-950"
-                    : "bg-stone-100 text-stone-600 hover:bg-stone-200"
-                }`}
-                onClick={() => setActiveView(tab.key)}
-              >
-                {tab.label}
-              </button>
-            ))}
-        </div>
+        <button
+          type="button"
+          className="flex w-full items-center justify-between gap-4 rounded-[24px] border border-stone-200 bg-stone-50 px-4 py-4 text-left transition hover:bg-stone-100 focus:outline-none focus:ring-2 focus:ring-amber-200 focus:ring-offset-2"
+          aria-controls="timesheet-calendar-panel"
+          aria-expanded={isCalendarExpanded}
+          onClick={() => setIsCalendarExpanded((current) => !current)}
+        >
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-stone-500">
+              Calendar view
+            </p>
+            <p className="mt-2 text-sm text-stone-600">
+              {timesheet.monthLabel} - {selectableCalendarDayCount} active dates -{" "}
+              {formatHoursValue(timesheet.assignedHours)} assigned hrs
+            </p>
+          </div>
+          <span className="shrink-0 text-sm font-semibold text-stone-700">
+            {isCalendarExpanded ? "Collapse" : "Expand"}
+          </span>
+        </button>
 
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-7">
-          {timesheet.calendarDays.map((day) => (
-            <div
-              key={day.workDate}
-              className={`rounded-[24px] border px-4 py-4 text-sm ${
-                day.isSystemHoliday
-                  ? "border-rose-200 bg-rose-50"
-                  : day.isWeekend
-                    ? "border-stone-200 bg-stone-100"
-                    : day.capacityMinutes === 0
-                      ? "border-amber-200 bg-amber-50"
-                      : "border-stone-200 bg-white"
-              }`}
-            >
-              <p className="text-xs uppercase tracking-[0.2em] text-stone-500">
-                {formatDisplayDate(day.workDate)}
-              </p>
-              <p className="mt-2 font-semibold text-stone-900">
-                {day.isSystemHoliday
-                  ? "System holiday"
-                  : day.isWeekend
-                    ? "Weekend"
-                    : day.isPersonalNonWorkingDay
-                      ? "Personal Non-Working Day"
-                      : day.leaveType === "FULL_DAY"
-                        ? "Full-day leave"
-                        : day.leaveType === "HALF_DAY"
-                          ? "Half-day leave"
-                          : "Working day"}
-              </p>
-              <p className="mt-1 text-stone-600">
-                Capacity: {formatHoursValue(day.capacityHours)}h
-              </p>
-              <Select
-                className="mt-3"
-                value={toCalendarSelection(day)}
-                disabled={readOnly || day.baseCapacityMinutes === 0 || calendarSavingDate === day.workDate}
-                onChange={(event) =>
-                  void handleCalendarSelection(
-                    day.workDate,
-                    event.target.value as CalendarSelection,
-                  )
-                }
-              >
-                <option value="NONE">Working day</option>
-                <option value="HALF_DAY">Half-day leave</option>
-                <option value="FULL_DAY">Full-day leave</option>
-                <option value="PERSONAL_NON_WORKING_DAY">Personal Non-Working Day</option>
-              </Select>
-            </div>
-          ))}
-        </div>
+        {isCalendarExpanded ? (
+          <div id="timesheet-calendar-panel" className="grid gap-3 sm:grid-cols-2 xl:grid-cols-7">
+            {timesheet.calendarDays.map((day) => {
+              const stateLabel = getCalendarStateLabel(day);
+              const canSelectState = !readOnly && day.baseCapacityMinutes > 0;
+              const recordedMinutes = dailyRecordedMinutes[day.workDate] ?? 0;
+              const isFullyUtilized = isExactlyUtilized(
+                recordedMinutes,
+                day.capacityMinutes,
+              );
+
+              return (
+                <div
+                  key={day.workDate}
+                  className={`rounded-[24px] border px-4 py-4 text-sm ${
+                    isFullyUtilized
+                      ? "border-emerald-200 bg-emerald-50"
+                      : day.isSystemHoliday
+                      ? "border-rose-200 bg-rose-50"
+                      : day.isWeekend
+                        ? "border-stone-200 bg-stone-100"
+                        : day.capacityMinutes === 0
+                          ? "border-amber-200 bg-amber-50"
+                          : "border-stone-200 bg-white"
+                  }`}
+                >
+                  <p className="text-xs uppercase tracking-[0.2em] text-stone-500">
+                    {formatDisplayDate(day.workDate)}
+                  </p>
+                  {canSelectState ? (
+                    <Select
+                      aria-label={`${formatDisplayDate(day.workDate)} day state`}
+                      className="mt-2 border-0 bg-transparent px-0 py-0 pr-8 text-sm font-semibold text-stone-900 shadow-none focus:border-0 focus:ring-0"
+                      value={toCalendarSelection(day)}
+                      disabled={calendarSavingDate === day.workDate}
+                      onChange={(event) =>
+                        void handleCalendarSelection(
+                          day.workDate,
+                          event.target.value as CalendarSelection,
+                        )
+                      }
+                    >
+                      <option value="NONE">Working Day</option>
+                      <option value="HALF_DAY">Half Day Leave</option>
+                      <option value="FULL_DAY">Full Day Leave</option>
+                      <option value="HOLIDAY">Holiday</option>
+                    </Select>
+                  ) : (
+                    <p className="mt-2 font-semibold text-stone-900">{stateLabel}</p>
+                  )}
+                  <p className="mt-1 text-stone-600">
+                    {day.capacityMinutes === 0
+                      ? "-"
+                      : `Utilization: ${formatDayUtilization(
+                          recordedMinutes,
+                          day.capacityMinutes,
+                        )}`}
+                  </p>
+                </div>
+              );
+            })}
+          </div>
+        ) : null}
       </Card>
+
+      <div className="flex flex-wrap gap-2">
+        {viewTabs
+          .filter((tab) => tab.enabled)
+          .map((tab) => (
+            <button
+              key={tab.key}
+              type="button"
+              className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
+                activeView === tab.key
+                  ? "bg-amber-300 text-stone-950"
+                  : "bg-stone-100 text-stone-600 hover:bg-stone-200"
+              }`}
+              onClick={() => setActiveView(tab.key)}
+            >
+              {tab.label}
+            </button>
+          ))}
+      </div>
+
+      <div className="sticky top-3 z-20">
+        <div className="rounded-[24px] border border-stone-200 bg-white/95 px-4 py-3 shadow-[0_18px_40px_-28px_rgba(17,17,17,0.35)] backdrop-blur">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-stone-500">
+                Progress
+              </p>
+              <div className="mt-2">
+                <ProgressBar value={completionPercentage} />
+              </div>
+            </div>
+            <p className="shrink-0 text-sm font-semibold text-stone-900">
+              {formatHoursValue(totalHours)} / {formatHoursValue(timesheet.assignedHours)} hrs
+            </p>
+          </div>
+        </div>
+      </div>
 
       {activeView === "week" ? (
         <Card className="space-y-4">
-          <div>
-            <h3 className="text-xl font-semibold text-stone-950">Week allocation</h3>
-            <p className="mt-1 text-sm text-stone-600">
-              Allocate one sub-program across the selected Mon-Fri week segment using
-              10-minute resolution.
-            </p>
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h3 className="text-xl font-semibold text-stone-950">Week allocation</h3>
+              <p className="mt-1 text-sm text-stone-600">
+                Allocate one sub-program across the selected Mon-Fri week segment using
+                10-minute resolution.
+              </p>
+            </div>
+            {!readOnly ? (
+              <Button className="w-full sm:w-auto" onClick={addWeekForm}>
+                Add entry
+              </Button>
+            ) : null}
           </div>
-          <div className="grid gap-4 md:grid-cols-2">
-            <label className="text-sm font-medium text-stone-700">
-              Week
-              <Select
-                className="mt-2"
-                value={weekForm.weekStartDate || weekOptions[0]?.weekStartDate || ""}
-                onChange={(event) =>
-                  setWeekForm((current) => ({
-                    ...current,
-                    weekStartDate: event.target.value,
-                  }))
-                }
-                disabled={!timesheet.viewAvailability.week}
+          <div className="space-y-4">
+            {weekForms.map((weekForm, index) => (
+              <div
+                key={weekForm.id}
+                className="rounded-[24px] border border-stone-200 bg-stone-50 p-4"
               >
-                {weekOptions.map((option) => (
-                  <option key={option.weekStartDate} value={option.weekStartDate}>
-                    {option.label}
-                  </option>
-                ))}
-              </Select>
-            </label>
-            <label className="text-sm font-medium text-stone-700">
-              Sub-program
-              <Select
-                className="mt-2"
-                value={weekForm.projectId}
-                onChange={(event) =>
-                  setWeekForm((current) => ({ ...current, projectId: event.target.value }))
-                }
-              >
-                {availableProjects.map((project) => (
-                  <option key={project.id} value={project.id}>
-                    {project.code} - {project.name}
-                  </option>
-                ))}
-              </Select>
-            </label>
-            <label className="text-sm font-medium text-stone-700">
-              Total hours
-              <Input
-                className="mt-2"
-                type="number"
-                step="any"
-                min={0}
-                value={weekForm.totalHours}
-                onChange={(event) =>
-                  setWeekForm((current) => ({ ...current, totalHours: event.target.value }))
-                }
-              />
-            </label>
-            <label className="text-sm font-medium text-stone-700 md:col-span-2">
-              Description
-              <Textarea
-                className="mt-2"
-                rows={4}
-                value={weekForm.description}
-                onChange={(event) =>
-                  setWeekForm((current) => ({ ...current, description: event.target.value }))
-                }
-              />
-            </label>
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <p className="text-xs uppercase tracking-[0.22em] text-stone-500">
+                    Allocation {index + 1}
+                  </p>
+                  {!readOnly && weekForms.length > 1 ? (
+                    <Button variant="ghost" onClick={() => removeWeekForm(weekForm.id)}>
+                      Remove
+                    </Button>
+                  ) : null}
+                </div>
+                <div className="mt-4 grid gap-4 md:grid-cols-2">
+                  <label className="text-sm font-medium text-stone-700">
+                    Week
+                    <Select
+                      className="mt-2"
+                      value={weekForm.weekStartDate || weekOptions[0]?.weekStartDate || ""}
+                      onChange={(event) =>
+                        updateWeekForm(weekForm.id, "weekStartDate", event.target.value)
+                      }
+                      disabled={!timesheet.viewAvailability.week}
+                    >
+                      {weekOptions.map((option) => (
+                        <option key={option.weekStartDate} value={option.weekStartDate}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </Select>
+                  </label>
+                  <label className="text-sm font-medium text-stone-700">
+                    Sub-program
+                    <Select
+                      className="mt-2"
+                      value={weekForm.projectId}
+                      onChange={(event) =>
+                        updateWeekForm(weekForm.id, "projectId", event.target.value)
+                      }
+                    >
+                      {availableProjects.map((project) => (
+                        <option key={project.id} value={project.id}>
+                          {project.code} - {project.name}
+                        </option>
+                      ))}
+                    </Select>
+                  </label>
+                  <label className="text-sm font-medium text-stone-700">
+                    Total hours
+                    <Input
+                      className="mt-2"
+                      type="number"
+                      step="any"
+                      min={0}
+                      value={weekForm.totalHours}
+                      onChange={(event) =>
+                        updateWeekForm(weekForm.id, "totalHours", event.target.value)
+                      }
+                    />
+                  </label>
+                  <label className="text-sm font-medium text-stone-700 md:col-span-2">
+                    Description
+                    <Textarea
+                      className="mt-2"
+                      rows={4}
+                      value={weekForm.description}
+                      onChange={(event) =>
+                        updateWeekForm(weekForm.id, "description", event.target.value)
+                      }
+                    />
+                  </label>
+                </div>
+                <div className="mt-4 flex flex-wrap gap-3">
+                  <Button
+                    className="w-full sm:w-auto"
+                    onClick={() => void handleWeekApply(weekForm)}
+                    disabled={readOnly || !timesheet.viewAvailability.week}
+                  >
+                    Apply week allocation
+                  </Button>
+                </div>
+              </div>
+            ))}
           </div>
-          <Button
-            className="w-full sm:w-auto"
-            onClick={() => void handleWeekApply()}
-            disabled={readOnly || !timesheet.viewAvailability.week}
-          >
-            Apply week allocation
-          </Button>
         </Card>
       ) : null}
 
       {activeView === "month" ? (
         <Card className="space-y-4">
-          <div>
-            <h3 className="text-xl font-semibold text-stone-950">Month allocation</h3>
-            <p className="mt-1 text-sm text-stone-600">
-              Allocate one sub-program across all valid dates in the month. The result is
-              written back as day-level rows.
-            </p>
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h3 className="text-xl font-semibold text-stone-950">Month allocation</h3>
+              <p className="mt-1 text-sm text-stone-600">
+                Allocate one sub-program across all valid dates in the month. The result is
+                written back as day-level rows.
+              </p>
+            </div>
+            {!readOnly ? (
+              <Button className="w-full sm:w-auto" onClick={addMonthForm}>
+                Add entry
+              </Button>
+            ) : null}
           </div>
-          <div className="grid gap-4 md:grid-cols-2">
-            <label className="text-sm font-medium text-stone-700">
-              Sub-program
-              <Select
-                className="mt-2"
-                value={monthForm.projectId}
-                onChange={(event) =>
-                  setMonthForm((current) => ({ ...current, projectId: event.target.value }))
-                }
+          <div className="space-y-4">
+            {monthForms.map((monthForm, index) => (
+              <div
+                key={monthForm.id}
+                className="rounded-[24px] border border-stone-200 bg-stone-50 p-4"
               >
-                {availableProjects.map((project) => (
-                  <option key={project.id} value={project.id}>
-                    {project.code} - {project.name}
-                  </option>
-                ))}
-              </Select>
-            </label>
-            <label className="text-sm font-medium text-stone-700">
-              Total hours
-              <Input
-                className="mt-2"
-                type="number"
-                step="any"
-                min={0}
-                value={monthForm.totalHours}
-                onChange={(event) =>
-                  setMonthForm((current) => ({ ...current, totalHours: event.target.value }))
-                }
-              />
-            </label>
-            <label className="text-sm font-medium text-stone-700 md:col-span-2">
-              Description
-              <Textarea
-                className="mt-2"
-                rows={4}
-                value={monthForm.description}
-                onChange={(event) =>
-                  setMonthForm((current) => ({ ...current, description: event.target.value }))
-                }
-              />
-            </label>
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <p className="text-xs uppercase tracking-[0.22em] text-stone-500">
+                    Allocation {index + 1}
+                  </p>
+                  {!readOnly && monthForms.length > 1 ? (
+                    <Button variant="ghost" onClick={() => removeMonthForm(monthForm.id)}>
+                      Remove
+                    </Button>
+                  ) : null}
+                </div>
+                <div className="mt-4 grid gap-4 md:grid-cols-2">
+                  <label className="text-sm font-medium text-stone-700">
+                    Sub-program
+                    <Select
+                      className="mt-2"
+                      value={monthForm.projectId}
+                      onChange={(event) =>
+                        updateMonthForm(monthForm.id, "projectId", event.target.value)
+                      }
+                    >
+                      {availableProjects.map((project) => (
+                        <option key={project.id} value={project.id}>
+                          {project.code} - {project.name}
+                        </option>
+                      ))}
+                    </Select>
+                  </label>
+                  <label className="text-sm font-medium text-stone-700">
+                    Total hours
+                    <Input
+                      className="mt-2"
+                      type="number"
+                      step="any"
+                      min={0}
+                      value={monthForm.totalHours}
+                      onChange={(event) =>
+                        updateMonthForm(monthForm.id, "totalHours", event.target.value)
+                      }
+                    />
+                  </label>
+                  <label className="text-sm font-medium text-stone-700 md:col-span-2">
+                    Description
+                    <Textarea
+                      className="mt-2"
+                      rows={4}
+                      value={monthForm.description}
+                      onChange={(event) =>
+                        updateMonthForm(monthForm.id, "description", event.target.value)
+                      }
+                    />
+                  </label>
+                </div>
+                <div className="mt-4 flex flex-wrap gap-3">
+                  <Button
+                    className="w-full sm:w-auto"
+                    onClick={() => void handleMonthApply(monthForm)}
+                    disabled={readOnly || !timesheet.viewAvailability.month}
+                  >
+                    Apply month allocation
+                  </Button>
+                </div>
+              </div>
+            ))}
           </div>
-          <Button
-            className="w-full sm:w-auto"
-            onClick={() => void handleMonthApply()}
-            disabled={readOnly || !timesheet.viewAvailability.month}
-          >
-            Apply month allocation
-          </Button>
         </Card>
       ) : null}
 
@@ -1210,7 +1462,11 @@ export function TimesheetEditor({
                 nearest valid 10-minute increment.
               </p>
             </div>
-            {!readOnly ? <Button className="w-full sm:w-auto" onClick={addEntry}>Add entry</Button> : null}
+            {!readOnly ? (
+              <Button className="w-full sm:w-auto" onClick={addEntry}>
+                Add entry
+              </Button>
+            ) : null}
           </div>
 
           <div className="space-y-4 md:hidden">
@@ -1404,7 +1660,15 @@ export function TimesheetEditor({
             className="w-full sm:w-auto"
             variant="secondary"
             onClick={() => {
-              void autosave.saveNow().catch(() => undefined);
+              void runWithLoader({
+                mode: "blocking",
+                message: "Saving draft...",
+                operation: async () => {
+                  await autosave.saveNow();
+                },
+              }).catch((error) => {
+                showError(error, "Unable to save the current draft.");
+              });
             }}
           >
             Save draft
@@ -1420,12 +1684,13 @@ export function TimesheetEditor({
             Request edit
           </Button>
         ) : null}
-        <Link
+        <GlobalLoaderLink
           href="/dashboard"
+          loaderMessage="Returning to dashboard..."
           className="inline-flex min-h-11 items-center justify-center rounded-full border border-stone-300 bg-white px-4 py-2 text-sm font-semibold text-stone-700"
         >
           Back to dashboard
-        </Link>
+        </GlobalLoaderLink>
       </div>
     </div>
   );

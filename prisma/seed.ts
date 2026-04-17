@@ -314,7 +314,7 @@ async function seedTimesheet(params: {
         timesheetId: timesheet.id,
         workDate: new Date(`${state.workDate}T00:00:00+05:30`),
         leaveType: state.leaveType,
-        isPersonalNonWorkingDay: state.isPersonalNonWorkingDay,
+        isPersonalNonWorkingDay: state.isManualHoliday,
       })),
     });
   }

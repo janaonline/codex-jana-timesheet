@@ -82,6 +82,10 @@ type Actor = {
 
 type CapacityContext = Awaited<ReturnType<typeof getCapacityContext>>;
 
+type TimesheetCalendarUpdateInput = TimesheetDayStateInput & {
+  confirmEntryClear?: boolean;
+};
+
 export type TimesheetEntryView = {
   id: string;
   workDate: string;
@@ -198,7 +202,7 @@ function toStoredDayStates(timesheet: TimesheetRecord) {
   return timesheet.dayStates.map((state) => ({
     workDate: dateToIsoDate(state.workDate),
     leaveType: state.leaveType,
-    isPersonalNonWorkingDay: state.isPersonalNonWorkingDay,
+    isManualHoliday: state.isPersonalNonWorkingDay,
   }));
 }
 
@@ -653,6 +657,38 @@ function buildOverwriteDetails(entries: TimesheetRecord["entries"]) {
   return overwriteDates.map(
     (workDate) => `${workDate}: an existing row for the selected sub-program will be replaced.`,
   );
+}
+
+function buildManualHolidayClearDetails(
+  entries: TimesheetRecord["entries"],
+  targetDates: string[],
+) {
+  const targetDateSet = new Set(targetDates);
+  const entriesByDate = entries.reduce<Record<string, TimesheetRecord["entries"]>>(
+    (accumulator, entry) => {
+      const workDate = dateToIsoDate(entry.workDate);
+      if (!targetDateSet.has(workDate)) {
+        return accumulator;
+      }
+
+      accumulator[workDate] = [...(accumulator[workDate] ?? []), entry];
+      return accumulator;
+    },
+    {},
+  );
+
+  return Object.entries(entriesByDate)
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([workDate, workEntries]) => {
+      const clearedMinutes = workEntries.reduce(
+        (sum, entry) => sum + resolveEntryMinutes(entry),
+        0,
+      );
+
+      return `${workDate}: ${workEntries.length} existing ${
+        workEntries.length === 1 ? "entry" : "entries"
+      } totaling ${minutesToHours(clearedMinutes)} hours will be cleared.`;
+    });
 }
 
 async function buildAllocationTargets(params: {
@@ -1124,7 +1160,7 @@ export async function updateTimesheetCalendar(params: {
   timesheetId: string;
   actor: Actor;
   version: number;
-  updates: TimesheetDayStateInput[];
+  updates: TimesheetCalendarUpdateInput[];
   reference?: Date;
 }) {
   const reference = params.reference ?? new Date();
@@ -1179,13 +1215,49 @@ export async function updateTimesheetCalendar(params: {
 
     validateDayStateInput(calendarDay, update);
 
-    if (update.leaveType === "NONE" && !update.isPersonalNonWorkingDay) {
+    if (update.leaveType === "NONE" && !update.isManualHoliday) {
       nextStateMap.delete(update.workDate);
       continue;
     }
 
     nextStateMap.set(update.workDate, update);
   }
+
+  const manualHolidayUpdates = params.updates.filter((update) => update.isManualHoliday);
+  const manualHolidayDates = [...new Set(manualHolidayUpdates.map((update) => update.workDate))];
+  const unconfirmedManualHolidayDates = new Set(
+    manualHolidayUpdates
+      .filter((update) => !update.confirmEntryClear)
+      .map((update) => update.workDate),
+  );
+  const requiresHolidayConfirmation = existing.entries.some((entry) =>
+    unconfirmedManualHolidayDates.has(dateToIsoDate(entry.workDate)),
+  );
+
+  if (requiresHolidayConfirmation) {
+    throw new AppError(
+      "HOLIDAY_CONFIRMATION_REQUIRED",
+      409,
+      "Selecting Holiday will clear existing entries for the selected date.",
+      buildManualHolidayClearDetails(existing.entries, [...unconfirmedManualHolidayDates]),
+    );
+  }
+
+  const holidayClearDates = [
+    ...new Set(
+      manualHolidayUpdates
+        .filter((update) => update.confirmEntryClear)
+        .map((update) => update.workDate),
+    ),
+  ];
+  const holidayClearDateSet = new Set(holidayClearDates);
+  const clearedEntries = existing.entries.filter((entry) =>
+    holidayClearDateSet.has(dateToIsoDate(entry.workDate)),
+  );
+  const clearedEntryMinutes = clearedEntries.reduce(
+    (sum, entry) => sum + resolveEntryMinutes(entry),
+    0,
+  );
 
   const nextStates = [...nextStateMap.values()].sort((left, right) =>
     left.workDate.localeCompare(right.workDate),
@@ -1194,15 +1266,17 @@ export async function updateTimesheetCalendar(params: {
     dayStates: nextStates,
     legacyLeaveDays: 0,
   });
-  const currentEntries = existing.entries.map((entry) => ({
-    id: entry.id,
-    workDate: dateToIsoDate(entry.workDate),
-    projectId: entry.projectId,
-    minutes: resolveEntryMinutes(entry),
-    description: entry.description,
-    createdVia: entry.createdVia,
-    lastEditedVia: entry.lastEditedVia,
-  })) satisfies DraftEntryInput[];
+  const currentEntries = existing.entries
+    .filter((entry) => !holidayClearDateSet.has(dateToIsoDate(entry.workDate)))
+    .map((entry) => ({
+      id: entry.id,
+      workDate: dateToIsoDate(entry.workDate),
+      projectId: entry.projectId,
+      minutes: resolveEntryMinutes(entry),
+      description: entry.description,
+      createdVia: entry.createdVia,
+      lastEditedVia: entry.lastEditedVia,
+    })) satisfies DraftEntryInput[];
   const validation = validateTimesheetInput({
     entries: currentEntries,
     assignedMinutes: nextSummary.assignedMinutes,
@@ -1234,6 +1308,17 @@ export async function updateTimesheetCalendar(params: {
     );
     const nextDateSet = new Set(nextStates.map((state) => state.workDate));
 
+    if (holidayClearDates.length > 0) {
+      await tx.timesheetEntry.deleteMany({
+        where: {
+          timesheetId: existing.id,
+          workDate: {
+            in: holidayClearDates.map(toWorkDate),
+          },
+        },
+      });
+    }
+
     for (const [workDate, id] of existingDayStateIds.entries()) {
       if (!nextDateSet.has(workDate)) {
         await tx.timesheetDayState.delete({
@@ -1249,7 +1334,7 @@ export async function updateTimesheetCalendar(params: {
           where: { id: existingId },
           data: {
             leaveType: state.leaveType,
-            isPersonalNonWorkingDay: state.isPersonalNonWorkingDay,
+            isPersonalNonWorkingDay: state.isManualHoliday,
           },
         });
         continue;
@@ -1260,7 +1345,7 @@ export async function updateTimesheetCalendar(params: {
           timesheetId: existing.id,
           workDate: toWorkDate(state.workDate),
           leaveType: state.leaveType,
-          isPersonalNonWorkingDay: state.isPersonalNonWorkingDay,
+          isPersonalNonWorkingDay: state.isManualHoliday,
         },
       });
     }
@@ -1280,6 +1365,25 @@ export async function updateTimesheetCalendar(params: {
     });
 
     const dateRange = getDateRangeMetadata(params.updates.map((update) => update.workDate));
+    if (holidayClearDates.length > 0) {
+      await safeWriteAuditLog(
+        {
+          actorUserId: params.actor.userId,
+          subjectUserId: existing.userId,
+          timesheetId: existing.id,
+          action: "TIMESHEET_MANUAL_HOLIDAY_ENTRIES_CLEARED",
+          entityType: "TIMESHEET",
+          entityId: existing.id,
+          metadata: {
+            clearedDates: holidayClearDates,
+            rowsDeleted: clearedEntries.length,
+            totalHoursDeleted: minutesToHours(clearedEntryMinutes),
+          },
+        },
+        tx as unknown as typeof prisma,
+      );
+    }
+
     await safeWriteAuditLog(
       {
         actorUserId: params.actor.userId,
@@ -1294,8 +1398,9 @@ export async function updateTimesheetCalendar(params: {
           endDate: dateRange.endDate,
           rowsCreated: 0,
           rowsUpdated: params.updates.length,
-          rowsDeleted: 0,
-          overwriteConfirmed: false,
+          rowsDeleted: clearedEntries.length,
+          entryClearConfirmed: holidayClearDates.length > 0,
+          manualHolidayDates,
         },
       },
       tx as unknown as typeof prisma,

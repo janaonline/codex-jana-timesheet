@@ -22,14 +22,18 @@ export async function PATCH(
         updates?: Array<{
           workDate?: string;
           leaveType?: string;
+          isManualHoliday?: boolean;
           isPersonalNonWorkingDay?: boolean;
+          confirmEntryClear?: boolean;
         }>;
       };
 
       const updates = requireArray<{
         workDate?: string;
         leaveType?: string;
+        isManualHoliday?: boolean;
         isPersonalNonWorkingDay?: boolean;
+        confirmEntryClear?: boolean;
       }>(body.updates, "updates").map((update, index) => {
         const leaveType = requireString(update.leaveType, `updates[${index}].leaveType`);
         if (!LEAVE_TYPES.includes(leaveType as (typeof LEAVE_TYPES)[number])) {
@@ -39,7 +43,10 @@ export async function PATCH(
         return {
           workDate: requireString(update.workDate, `updates[${index}].workDate`),
           leaveType: leaveType as (typeof LEAVE_TYPES)[number],
-          isPersonalNonWorkingDay: Boolean(update.isPersonalNonWorkingDay),
+          isManualHoliday: Boolean(
+            update.isManualHoliday ?? update.isPersonalNonWorkingDay,
+          ),
+          confirmEntryClear: Boolean(update.confirmEntryClear),
         };
       });
 
