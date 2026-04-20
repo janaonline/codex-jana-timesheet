@@ -1,18 +1,21 @@
 "use client";
 
 import {
+  Suspense,
   createContext,
   useCallback,
   useContext,
   useEffect,
-  useMemo,
   useRef,
   useState,
+  useMemo,
 } from "react";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 
 import { useToast } from "@/components/common/toast-provider";
 import {
+  buildRouteLocationKey,
+  completeRouteTransitionRequests,
   GLOBAL_LOADER_TIMINGS,
   getHideDelayMs,
   selectDominantLoaderRequest,
@@ -42,9 +45,27 @@ function LoaderRing() {
   );
 }
 
+function RouteLocationObserver({
+  onLocationChange,
+}: {
+  onLocationChange: () => void;
+}) {
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const routeLocationKey = useMemo(
+    () => buildRouteLocationKey(pathname, searchParams.toString()),
+    [pathname, searchParams],
+  );
+
+  useEffect(() => {
+    onLocationChange();
+  }, [onLocationChange, routeLocationKey]);
+
+  return null;
+}
+
 export function GlobalLoaderProvider({ children }: { children: React.ReactNode }) {
   const { pushToast } = useToast();
-  const pathname = usePathname();
   const [requests, setRequests] = useState<GlobalLoaderRequest[]>([]);
   const [visibleRequest, setVisibleRequest] = useState<GlobalLoaderRequest | null>(null);
   const [isMinimized, setIsMinimized] = useState(false);
@@ -81,10 +102,6 @@ export function GlobalLoaderProvider({ children }: { children: React.ReactNode }
       clearHideTimer();
     };
   }, [clearHideTimer, clearShowTimer]);
-
-  useEffect(() => {
-    setRequests((current) => current.filter((request) => request.source !== "route"));
-  }, [pathname]);
 
   useEffect(() => {
     if (dominantRequest?.mode === "blocking") {
@@ -166,6 +183,10 @@ export function GlobalLoaderProvider({ children }: { children: React.ReactNode }
     [showLoader],
   );
 
+  const completeRouteTransitions = useCallback(() => {
+    setRequests((current) => completeRouteTransitionRequests(current));
+  }, []);
+
   const runWithLoader = useCallback(
     async <T,>({
       mode,
@@ -236,6 +257,9 @@ export function GlobalLoaderProvider({ children }: { children: React.ReactNode }
 
   return (
     <GlobalLoaderContext.Provider value={value}>
+      <Suspense fallback={null}>
+        <RouteLocationObserver onLocationChange={completeRouteTransitions} />
+      </Suspense>
       {children}
       {isVisible && visibleRequest?.mode === "blocking" ? (
         <div className="fixed inset-0 z-[70] flex items-center justify-center bg-stone-950/20 px-4 backdrop-blur-[2px]">

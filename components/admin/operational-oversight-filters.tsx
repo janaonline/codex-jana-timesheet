@@ -9,6 +9,7 @@ import {
   EDIT_REQUEST_METRIC_FILTERS,
   type EditRequestMetricFilter,
 } from "@/lib/constants";
+import { getOperationalOversightNextLocation } from "@/lib/operational-oversight-filters";
 
 function filterLabel(filter: EditRequestMetricFilter) {
   return filter === "ALL"
@@ -34,30 +35,21 @@ export function OperationalOversightFilters({
     monthKey?: string | null;
     editRequestStatus?: EditRequestMetricFilter;
   }) {
-    const params = new URLSearchParams(searchParams.toString());
-    const nextMonthKey =
-      next.monthKey !== undefined ? next.monthKey : selectedMonthKey;
-    const nextStatus =
-      next.editRequestStatus !== undefined
-        ? next.editRequestStatus
-        : selectedEditRequestStatus;
+    const nextLocation = getOperationalOversightNextLocation({
+      pathname,
+      currentSearch: searchParams.toString(),
+      selectedMonthKey,
+      selectedEditRequestStatus,
+      next,
+    });
 
-    if (nextMonthKey) {
-      params.set("oversightMonthKey", nextMonthKey);
-    } else {
-      params.delete("oversightMonthKey");
-    }
-
-    if (nextStatus === "ALL") {
-      params.delete("editRequestStatus");
-    } else {
-      params.set("editRequestStatus", nextStatus);
+    if (!nextLocation) {
+      return;
     }
 
     beginRouteTransition("Refreshing oversight metrics...");
     startTransition(() => {
-      const queryString = params.toString();
-      router.replace(queryString ? `${pathname}?${queryString}` : pathname);
+      router.replace(nextLocation);
     });
   }
 

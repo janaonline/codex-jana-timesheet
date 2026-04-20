@@ -16,6 +16,24 @@ export type GlobalLoaderRequest = {
   message?: string;
 };
 
+export function buildRouteLocationKey(
+  pathname: string,
+  searchParams?: string | URLSearchParams | null,
+) {
+  const queryString =
+    typeof searchParams === "string"
+      ? searchParams.replace(/^\?/, "")
+      : searchParams?.toString() ?? "";
+
+  return queryString ? `${pathname}?${queryString}` : pathname;
+}
+
+export function completeRouteTransitionRequests(
+  requests: GlobalLoaderRequest[],
+) {
+  return requests.filter((request) => request.source !== "route");
+}
+
 export function selectDominantLoaderRequest(
   requests: GlobalLoaderRequest[],
 ) {
