@@ -5,6 +5,7 @@ import { signIn, signOut } from "next-auth/react";
 
 import { Button } from "@/components/common/button";
 import { Card } from "@/components/common/card";
+import { useGlobalLoader } from "@/components/common/global-loader-provider";
 import { Input } from "@/components/common/input";
 import { Modal } from "@/components/common/modal";
 import {
@@ -75,6 +76,7 @@ export function LoginScreen({
   const [cooldownSeconds, setCooldownSeconds] = useState(0);
   const [sessionExpiredOpen, setSessionExpiredOpen] = useState(sessionExpired);
   const [logoutPending, setLogoutPending] = useState(false);
+  const { runWithLoader } = useGlobalLoader();
 
   useEffect(() => {
     setSessionExpiredOpen(sessionExpired);
@@ -102,9 +104,14 @@ export function LoginScreen({
     setLogoutPending(true);
 
     try {
-      const result = await signOut({
-        callbackUrl: "/login",
-        redirect: false,
+      const result = await runWithLoader({
+        mode: "blocking",
+        message: "Signing out...",
+        operation: () =>
+          signOut({
+            callbackUrl: "/login",
+            redirect: false,
+          }),
       });
 
       setSessionExpiredOpen(false);
@@ -119,15 +126,23 @@ export function LoginScreen({
     setError(null);
 
     try {
-      const response = await fetch("/api/v1/auth/request-otp", {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-        },
-        body: JSON.stringify({
-          email,
-          purpose,
-        }),
+      const response = await runWithLoader({
+        mode: "non-blocking",
+        message:
+          purpose === "FORGOT_PASSWORD"
+            ? "Sending reset code..."
+            : "Sending activation code...",
+        operation: () =>
+          fetch("/api/v1/auth/request-otp", {
+            method: "POST",
+            headers: {
+              "content-type": "application/json",
+            },
+            body: JSON.stringify({
+              email,
+              purpose,
+            }),
+          }),
       });
 
       const payload = (await response.json()) as
@@ -161,11 +176,16 @@ export function LoginScreen({
     setPending(true);
     setError(null);
 
-    const result = await signIn(PASSWORD_AUTH_PROVIDER_ID, {
-      email,
-      password,
-      callbackUrl: "/",
-      redirect: false,
+    const result = await runWithLoader({
+      mode: "blocking",
+      message: "Signing in...",
+      operation: () =>
+        signIn(PASSWORD_AUTH_PROVIDER_ID, {
+          email,
+          password,
+          callbackUrl: "/",
+          redirect: false,
+        }),
     });
 
     if (result?.error) {
@@ -182,12 +202,17 @@ export function LoginScreen({
     setPending(true);
     setError(null);
 
-    const result = await signIn(OTP_AUTH_PROVIDER_ID, {
-      email,
-      code: otpCode,
-      purpose: otpPurpose,
-      callbackUrl: "/auth/set-password",
-      redirect: false,
+    const result = await runWithLoader({
+      mode: "blocking",
+      message: "Verifying code...",
+      operation: () =>
+        signIn(OTP_AUTH_PROVIDER_ID, {
+          email,
+          code: otpCode,
+          purpose: otpPurpose,
+          callbackUrl: "/auth/set-password",
+          redirect: false,
+        }),
     });
 
     if (result?.error) {

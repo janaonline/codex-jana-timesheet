@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 
 import { Button } from "@/components/common/button";
 import { Card } from "@/components/common/card";
+import { useGlobalLoader } from "@/components/common/global-loader-provider";
 import { Input } from "@/components/common/input";
 import {
   handleUnauthorizedApiClientError,
@@ -76,6 +77,7 @@ export function SetPasswordScreen({
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const { runWithLoader } = useGlobalLoader();
 
   function replaceLocation(url: string) {
     window.location.replace(url);
@@ -87,15 +89,20 @@ export function SetPasswordScreen({
     setError(null);
 
     try {
-      const response = await fetch("/api/v1/auth/set-password", {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-        },
-        body: JSON.stringify({
-          password,
-          confirmPassword,
-        }),
+      const response = await runWithLoader({
+        mode: "blocking",
+        message: "Saving password...",
+        operation: () =>
+          fetch("/api/v1/auth/set-password", {
+            method: "POST",
+            headers: {
+              "content-type": "application/json",
+            },
+            body: JSON.stringify({
+              password,
+              confirmPassword,
+            }),
+          }),
       });
       const payload = await parseJsonApiResponse<SetPasswordResponse>(
         response,

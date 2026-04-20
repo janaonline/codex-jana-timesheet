@@ -1,6 +1,7 @@
 import { Card } from "@/components/common/card";
 import { Button } from "@/components/common/button";
 import { EmailTemplateManager } from "@/components/admin/email-template-manager";
+import { GlobalLoaderFormStatus } from "@/components/common/global-loader-form-status";
 import type { SystemConfigurationView } from "@/services/configuration-service";
 
 export function ConfigurationPanel({
@@ -23,6 +24,9 @@ export function ConfigurationPanel({
           System configuration
         </p>
         <form action={onConfigSubmit} className="space-y-4">
+          <GlobalLoaderFormStatus
+            message="Saving configuration..."
+          />
           <input name="autoSubmitDay" defaultValue={config.autoSubmitDay} hidden readOnly />
           <input
             name="completionThreshold"
@@ -143,6 +147,9 @@ export function ConfigurationPanel({
           Approver mapping
         </p>
         <form action={onApproverSubmit} className="space-y-4">
+          <GlobalLoaderFormStatus
+            message="Saving approver mapping..."
+          />
           {programHeads.map((user) => (
             <label
               key={user.id}

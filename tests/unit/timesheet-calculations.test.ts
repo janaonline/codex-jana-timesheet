@@ -8,7 +8,7 @@ import {
 } from "@/lib/timesheet-calculations";
 
 describe("timesheet calculations", () => {
-  it("derives assigned minutes from date capacity, leave, and personal non-working days", () => {
+  it("derives working, leave, and holiday capacities from the effective day state", () => {
     const result = calculateAssignedHours({
       monthKey: "2026-03",
       joinDate: null,
@@ -18,26 +18,65 @@ describe("timesheet calculations", () => {
         {
           workDate: "2026-03-05",
           leaveType: "FULL_DAY",
-          isPersonalNonWorkingDay: false,
+          isManualHoliday: false,
         },
         {
           workDate: "2026-03-06",
           leaveType: "HALF_DAY",
-          isPersonalNonWorkingDay: false,
+          isManualHoliday: false,
         },
         {
           workDate: "2026-03-09",
           leaveType: "NONE",
-          isPersonalNonWorkingDay: true,
+          isManualHoliday: true,
         },
       ],
       legacyLeaveDays: 0,
     });
 
+    const calendarDayMap = new Map(
+      result.calendarDays.map((day) => [day.workDate, day]),
+    );
+
+    expect(calendarDayMap.get("2026-03-04")?.capacityMinutes).toBe(480);
+    expect(calendarDayMap.get("2026-03-05")?.capacityMinutes).toBe(0);
+    expect(calendarDayMap.get("2026-03-06")?.capacityMinutes).toBe(240);
+    expect(calendarDayMap.get("2026-03-09")?.capacityMinutes).toBe(0);
+    expect(calendarDayMap.get("2026-03-20")?.capacityMinutes).toBe(0);
     expect(result.workingDaysCount).toBe(21);
     expect(result.leaveDays).toBe(1.5);
     expect(result.assignedMinutes).toBe(8880);
     expect(result.assignedHours).toBe(148);
+  });
+
+  it("restores full capacity when a holiday is switched back to a working day", () => {
+    const withHoliday = calculateAssignedHours({
+      monthKey: "2026-03",
+      joinDate: null,
+      exitDate: null,
+      holidays: [],
+      dayStates: [
+        {
+          workDate: "2026-03-09",
+          leaveType: "NONE",
+          isManualHoliday: true,
+        },
+      ],
+      legacyLeaveDays: 0,
+    });
+
+    const withoutHoliday = calculateAssignedHours({
+      monthKey: "2026-03",
+      joinDate: null,
+      exitDate: null,
+      holidays: [],
+      dayStates: [],
+      legacyLeaveDays: 0,
+    });
+
+    expect(withHoliday.assignedMinutes).toBe(10080);
+    expect(withoutHoliday.assignedMinutes).toBe(10560);
+    expect(withoutHoliday.assignedMinutes - withHoliday.assignedMinutes).toBe(480);
   });
 
   it("normalizes common decimal hour inputs to 10-minute increments", () => {
@@ -69,12 +108,12 @@ describe("timesheet calculations", () => {
       {
         workDate: "2026-03-02",
         leaveType: "FULL_DAY",
-        isPersonalNonWorkingDay: false,
+        isManualHoliday: false,
       },
       {
         workDate: "2026-03-03",
         leaveType: "HALF_DAY",
-        isPersonalNonWorkingDay: false,
+        isManualHoliday: false,
       },
     ]);
   });
@@ -89,7 +128,7 @@ describe("timesheet calculations", () => {
         {
           workDate: "2026-03-02",
           leaveType: "FULL_DAY",
-          isPersonalNonWorkingDay: false,
+          isManualHoliday: false,
         },
       ],
       legacyLeaveDays: 0,
@@ -151,6 +190,22 @@ describe("timesheet calculations", () => {
       2.83,
       2.83,
       2.67,
+    ]);
+  });
+
+  it("skips zero-capacity holiday dates during week and month allocation distribution", () => {
+    const distribution = distributeMinutesEvenly({
+      totalMinutes: 480,
+      targets: [
+        { workDate: "2026-03-03", capacityMinutes: 0 },
+        { workDate: "2026-03-04", capacityMinutes: 240 },
+        { workDate: "2026-03-05", capacityMinutes: 240 },
+      ],
+    });
+
+    expect(distribution).toEqual([
+      { workDate: "2026-03-04", minutes: 240 },
+      { workDate: "2026-03-05", minutes: 240 },
     ]);
   });
 });

@@ -1,10 +1,11 @@
 "use client";
 
-import Link from "next/link";
 import { signOut } from "next-auth/react";
 
 import { Badge } from "@/components/common/badge";
 import { Button } from "@/components/common/button";
+import { GlobalLoaderLink } from "@/components/common/global-loader-link";
+import { useGlobalLoader } from "@/components/common/global-loader-provider";
 import { cn } from "@/lib/utils";
 import type { Permission, UserRole } from "@/lib/constants";
 
@@ -32,9 +33,21 @@ export function PortalShell({
   userName: string;
   currentPath: string;
 }) {
+  const { showBlockingLoader, hideLoader } = useGlobalLoader();
   const accessibleNavItems = navItems.filter((item) =>
     permissions.includes(item.permission),
   );
+
+  async function handleSignOut() {
+    const token = showBlockingLoader("Signing out...");
+
+    try {
+      await signOut({ callbackUrl: "/login" });
+    } catch (error) {
+      hideLoader(token);
+      throw error;
+    }
+  }
 
   return (
     <div className="min-h-screen bg-white">
@@ -52,7 +65,7 @@ export function PortalShell({
             <Button
               variant="secondary"
               className="sm:w-auto lg:hidden"
-              onClick={() => signOut({ callbackUrl: "/login" })}
+              onClick={() => void handleSignOut()}
             >
               Sign out
             </Button>
@@ -68,9 +81,10 @@ export function PortalShell({
 
           <nav className="mt-5 flex gap-2 overflow-x-auto pb-1 lg:flex-col lg:overflow-visible">
             {accessibleNavItems.map((item) => (
-              <Link
+              <GlobalLoaderLink
                 key={item.href}
                 href={item.href}
+                loaderMessage="Loading page..."
                 className={cn(
                   "shrink-0 rounded-full border px-4 py-2.5 text-sm font-medium transition lg:rounded-2xl lg:px-4 lg:py-3",
                   currentPath === item.href
@@ -79,7 +93,7 @@ export function PortalShell({
                 )}
               >
                 {item.label}
-              </Link>
+              </GlobalLoaderLink>
             ))}
           </nav>
 
@@ -87,7 +101,7 @@ export function PortalShell({
             <Button
               variant="secondary"
               className="w-full"
-              onClick={() => signOut({ callbackUrl: "/login" })}
+              onClick={() => void handleSignOut()}
             >
               Sign out
             </Button>

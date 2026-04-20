@@ -4,6 +4,7 @@ import { useState } from "react";
 
 import { Badge } from "@/components/common/badge";
 import { Button } from "@/components/common/button";
+import { useGlobalLoader } from "@/components/common/global-loader-provider";
 import { Modal } from "@/components/common/modal";
 import { Textarea } from "@/components/common/textarea";
 import { useToast } from "@/components/common/toast-provider";
@@ -41,13 +42,18 @@ export function EditRequestTable({
   initialRequests: EditRequestRow[];
 }) {
   const { pushToast } = useToast();
+  const { runWithLoader } = useGlobalLoader();
   const [requests, setRequests] = useState(initialRequests);
   const [rejectingRequestId, setRejectingRequestId] = useState<string | null>(null);
   const [rejectionReason, setRejectionReason] = useState("");
 
   async function approve(requestId: string) {
     try {
-      await apiAction(`/api/v1/edit-requests/${requestId}/approve`);
+      await runWithLoader({
+        mode: "blocking",
+        message: "Approving edit request...",
+        operation: () => apiAction(`/api/v1/edit-requests/${requestId}/approve`),
+      });
       setRequests((current) => current.filter((request) => request.id !== requestId));
       pushToast({ title: "Edit request approved.", tone: "success" });
     } catch (error) {
@@ -68,8 +74,13 @@ export function EditRequestTable({
     }
 
     try {
-      await apiAction(`/api/v1/edit-requests/${rejectingRequestId}/reject`, {
-        reason: rejectionReason,
+      await runWithLoader({
+        mode: "blocking",
+        message: "Rejecting edit request...",
+        operation: () =>
+          apiAction(`/api/v1/edit-requests/${rejectingRequestId}/reject`, {
+            reason: rejectionReason,
+          }),
       });
       setRequests((current) =>
         current.filter((request) => request.id !== rejectingRequestId),

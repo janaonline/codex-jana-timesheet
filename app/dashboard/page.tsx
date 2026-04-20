@@ -1,9 +1,9 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import { Badge } from "@/components/common/badge";
 import { Button } from "@/components/common/button";
 import { Card } from "@/components/common/card";
+import { GlobalLoaderLink } from "@/components/common/global-loader-link";
 import { PortalShell } from "@/components/common/portal-shell";
 import { ProgressBar } from "@/components/common/progress-bar";
 import { PieChart } from "@/components/dashboard/pie-chart";
@@ -43,14 +43,20 @@ export default async function DashboardPage() {
             </p>
           </div>
           <div className="grid w-full gap-3 sm:w-auto sm:grid-cols-2">
-            <Link href={`/timesheets/${dashboard.currentTimesheet.id}`}>
+            <GlobalLoaderLink
+              href={`/timesheets/${dashboard.currentTimesheet.id}`}
+              loaderMessage="Loading current timesheet..."
+            >
               <Button className="w-full">Open current month</Button>
-            </Link>
-            <Link href={`/timesheets/${dashboard.previousTimesheet.id}`}>
+            </GlobalLoaderLink>
+            <GlobalLoaderLink
+              href={`/timesheets/${dashboard.previousTimesheet.id}`}
+              loaderMessage="Loading previous timesheet..."
+            >
               <Button className="w-full" variant="secondary">
                 Open previous month
               </Button>
-            </Link>
+            </GlobalLoaderLink>
           </div>
         </div>
       </Card>
@@ -87,9 +93,12 @@ export default async function DashboardPage() {
             Completion: {dashboard.previousTimesheet.completionPercentage}% | Remaining:{" "}
             {dashboard.previousTimesheet.remainingHours} hours
           </p>
-          <Link href={`/timesheets/${dashboard.previousTimesheet.id}`}>
+          <GlobalLoaderLink
+            href={`/timesheets/${dashboard.previousTimesheet.id}`}
+            loaderMessage="Loading previous timesheet..."
+          >
             <Button variant="secondary">View previous month</Button>
-          </Link>
+          </GlobalLoaderLink>
         </Card>
       </div>
 
@@ -122,9 +131,10 @@ export default async function DashboardPage() {
         </p>
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
           {dashboard.history.map((item) => (
-            <Link
+            <GlobalLoaderLink
               key={item.id}
               href={`/timesheets/${item.id}`}
+              loaderMessage="Loading timesheet..."
               className="rounded-[22px] border border-stone-200 bg-stone-50 px-4 py-4 transition hover:border-teal-300 hover:bg-white"
             >
               <div className="flex items-center justify-between">
@@ -139,7 +149,7 @@ export default async function DashboardPage() {
                   Submitted {formatDisplayDate(item.submittedAt)}
                 </p>
               ) : null}
-            </Link>
+            </GlobalLoaderLink>
           ))}
         </div>
       </Card>
