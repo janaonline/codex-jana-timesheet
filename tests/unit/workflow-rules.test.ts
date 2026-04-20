@@ -66,6 +66,7 @@ describe("workflow rules", () => {
         status: "FROZEN",
         monthKey: "2026-02",
         reference: new Date("2026-03-10T12:00:00+05:30"),
+        role: "PROGRAM_HEAD",
       }),
     ).toBe(true);
 
@@ -74,6 +75,43 @@ describe("workflow rules", () => {
         status: "FROZEN",
         monthKey: "2026-01",
         reference: new Date("2026-03-10T12:00:00+05:30"),
+        role: "PROGRAM_HEAD",
+      }),
+    ).toBe(true);
+
+    expect(
+      canRequestEdit({
+        status: "AUTO_SUBMITTED",
+        monthKey: "2026-01",
+        reference: new Date("2026-03-10T12:00:00+05:30"),
+        role: "ASSOCIATE_DIRECTOR",
+      }),
+    ).toBe(true);
+
+    expect(
+      canRequestEdit({
+        status: "REJECTED",
+        monthKey: "2026-01",
+        reference: new Date("2026-03-10T12:00:00+05:30"),
+        role: "PROGRAM_HEAD",
+      }),
+    ).toBe(true);
+
+    expect(
+      canRequestEdit({
+        status: "SUBMITTED",
+        monthKey: "2026-03",
+        reference: new Date("2026-03-10T12:00:00+05:30"),
+        role: "PROGRAM_HEAD",
+      }),
+    ).toBe(false);
+
+    expect(
+      canRequestEdit({
+        status: "FROZEN",
+        monthKey: "2026-01",
+        reference: new Date("2026-03-10T12:00:00+05:30"),
+        role: "ADMIN",
       }),
     ).toBe(false);
   });

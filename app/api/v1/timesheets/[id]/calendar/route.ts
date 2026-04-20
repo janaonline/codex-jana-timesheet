@@ -1,6 +1,6 @@
 import type { UserRole } from "@prisma/client";
 
-import { LEAVE_TYPES } from "@/lib/constants";
+import { LEAVE_TYPES, TIMESHEET_OWNER_ROLES } from "@/lib/constants";
 import { AppError } from "@/lib/errors";
 import { handleApiRoute } from "@/lib/api-route";
 import { apiSuccess, readJson } from "@/lib/response";
@@ -12,7 +12,7 @@ export async function PATCH(
   context: { params: Promise<{ id: string }> },
 ) {
   return handleApiRoute(request, {
-    roles: ["PROGRAM_HEAD"],
+    roles: [...TIMESHEET_OWNER_ROLES],
     requireOriginCheck: true,
     actionName: "update_timesheet_calendar",
     handler: async (session) => {

@@ -35,8 +35,19 @@ export const DEFAULT_REMINDER_SCHEDULE = {
   nextMonthPendingDays: [3],
 } as const;
 
-export const USER_ROLES = ["PROGRAM_HEAD", "ADMIN", "OPERATIONS"] as const;
+export const USER_ROLES = [
+  "PROGRAM_HEAD",
+  "ASSOCIATE_DIRECTOR",
+  "ADMIN",
+  "OPERATIONS",
+] as const;
 export type UserRole = (typeof USER_ROLES)[number];
+
+export const TIMESHEET_OWNER_ROLES = [
+  "PROGRAM_HEAD",
+  "ASSOCIATE_DIRECTOR",
+] as const satisfies readonly UserRole[];
+export type TimesheetOwnerRole = (typeof TIMESHEET_OWNER_ROLES)[number];
 
 export const TIMESHEET_STATUSES = [
   "DRAFT",
@@ -50,6 +61,17 @@ export const TIMESHEET_STATUSES = [
 ] as const;
 export type TimesheetStatus = (typeof TIMESHEET_STATUSES)[number];
 
+export const SUBMITTED_TIMESHEET_STATUSES = [
+  "SUBMITTED",
+  "AUTO_SUBMITTED",
+  "RESUBMITTED",
+] as const satisfies readonly TimesheetStatus[];
+
+export const NON_SUBMITTED_TIMESHEET_STATUSES = TIMESHEET_STATUSES.filter(
+  (status): status is Exclude<TimesheetStatus, (typeof SUBMITTED_TIMESHEET_STATUSES)[number]> =>
+    !SUBMITTED_TIMESHEET_STATUSES.includes(status as (typeof SUBMITTED_TIMESHEET_STATUSES)[number]),
+);
+
 export const EDIT_REQUEST_STATUSES = [
   "PENDING",
   "APPROVED",
@@ -57,6 +79,12 @@ export const EDIT_REQUEST_STATUSES = [
   "EXPIRED",
 ] as const;
 export type EditRequestStatus = (typeof EDIT_REQUEST_STATUSES)[number];
+
+export const EDIT_REQUEST_METRIC_FILTERS = [
+  "ALL",
+  ...EDIT_REQUEST_STATUSES,
+] as const;
+export type EditRequestMetricFilter = (typeof EDIT_REQUEST_METRIC_FILTERS)[number];
 
 export const EMAIL_LOG_STATUSES = ["PENDING", "SENT", "FAILED"] as const;
 export type EmailLogStatus = (typeof EMAIL_LOG_STATUSES)[number];
@@ -96,6 +124,12 @@ export type Permission =
 
 export const DEFAULT_ROLE_ACCESS: Record<UserRole, Permission[]> = {
   PROGRAM_HEAD: [
+    "timesheets:read:self",
+    "timesheets:write:self",
+    "timesheets:submit:self",
+    "timesheets:request-edit:self",
+  ],
+  ASSOCIATE_DIRECTOR: [
     "timesheets:read:self",
     "timesheets:write:self",
     "timesheets:submit:self",

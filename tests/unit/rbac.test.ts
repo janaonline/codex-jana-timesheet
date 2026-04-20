@@ -2,12 +2,16 @@ import {
   assertPermission,
   getPermissionsForRole,
   hasPermission,
+  isTimesheetOwnerRole,
 } from "@/lib/rbac";
 
 describe("RBAC enforcement", () => {
   it("grants program-head timesheet permissions only", () => {
     expect(hasPermission("PROGRAM_HEAD", "timesheets:write:self")).toBe(true);
     expect(hasPermission("PROGRAM_HEAD", "reports:read:admin")).toBe(false);
+    expect(
+      hasPermission("ASSOCIATE_DIRECTOR", "timesheets:request-edit:self"),
+    ).toBe(true);
   });
 
   it("centralizes default permissions with safe approval defaults", () => {
@@ -49,5 +53,23 @@ describe("RBAC enforcement", () => {
     expect(() =>
       assertPermission("PROGRAM_HEAD", "edit-requests:review"),
     ).toThrow("You do not have permission to perform this action.");
+  });
+});
+
+describe("isTimesheetOwnerRole", () => {
+  it("returns true for PROGRAM_HEAD", () => {
+    expect(isTimesheetOwnerRole("PROGRAM_HEAD")).toBe(true);
+  });
+
+  it("returns true for ASSOCIATE_DIRECTOR", () => {
+    expect(isTimesheetOwnerRole("ASSOCIATE_DIRECTOR")).toBe(true);
+  });
+
+  it("returns false for ADMIN", () => {
+    expect(isTimesheetOwnerRole("ADMIN")).toBe(false);
+  });
+
+  it("returns false for OPERATIONS", () => {
+    expect(isTimesheetOwnerRole("OPERATIONS")).toBe(false);
   });
 });

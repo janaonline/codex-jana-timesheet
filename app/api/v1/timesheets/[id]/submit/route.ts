@@ -2,6 +2,7 @@ import type { UserRole } from "@prisma/client";
 
 import { runAfterResponse } from "@/lib/background-task";
 import { handleApiRoute } from "@/lib/api-route";
+import { TIMESHEET_OWNER_ROLES } from "@/lib/constants";
 import { env } from "@/lib/env";
 import { apiSuccess } from "@/lib/response";
 import { submitTimesheet } from "@/services/timesheet-service";
@@ -12,7 +13,7 @@ export async function POST(
   context: { params: Promise<{ id: string }> },
 ) {
   return handleApiRoute(request, {
-    roles: ["PROGRAM_HEAD"],
+    roles: [...TIMESHEET_OWNER_ROLES],
     requireOriginCheck: true,
     actionName: "submit_timesheet",
     handler: async (session) => {

@@ -1,4 +1,5 @@
 import { AppError } from "@/lib/errors";
+import { TIMESHEET_OWNER_ROLES } from "@/lib/constants";
 import { prisma } from "@/lib/prisma";
 import { getDaysRemainingInMonth, getReminderRun, isExactAutoSubmitMoment } from "@/lib/time";
 import {
@@ -13,7 +14,7 @@ import {
   sendSubmissionConfirmationMessage,
 } from "@/services/email-service";
 import {
-  ensurePreviousMonthTimesheetsForAllProgramHeads,
+  ensurePreviousMonthTimesheetsForAllTimesheetOwners,
   ensureWindowTimesheets,
   expireApprovedEditWindows,
   getTimesheetEmailContext,
@@ -52,7 +53,7 @@ export async function runAutoSubmitJob(reference = new Date()) {
 
   const [config, timesheets, admins] = await Promise.all([
     getSystemConfiguration(),
-    ensurePreviousMonthTimesheetsForAllProgramHeads(reference),
+    ensurePreviousMonthTimesheetsForAllTimesheetOwners(reference),
     prisma.user.findMany({
       where: {
         role: "ADMIN",
@@ -176,7 +177,9 @@ export async function runReminderJob(reference = new Date()) {
 
   const users = await prisma.user.findMany({
     where: {
-      role: "PROGRAM_HEAD",
+      role: {
+        in: [...TIMESHEET_OWNER_ROLES],
+      },
       isActive: true,
     },
   });

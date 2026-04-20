@@ -32,8 +32,8 @@ export function RequestEditModal({
     <Modal open={open} title="Request edit / unfreeze" onClose={onClose}>
       <div className="space-y-4">
         <p className="text-sm text-stone-600">
-          This workflow reopens the previous month&apos;s timesheet for up to 3 working
-          days after approval. Please explain why the sheet needs to be unlocked.
+          This workflow requests a short admin-approved edit window for the selected
+          past-month timesheet. Please explain why the sheet needs to be unlocked.
         </p>
         <Textarea
           rows={6}

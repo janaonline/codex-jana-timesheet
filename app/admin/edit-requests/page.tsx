@@ -26,8 +26,8 @@ export default async function EditRequestsPage() {
         </p>
         <h2 className="text-4xl font-semibold text-stone-950">Unfreeze approvals</h2>
         <p className="max-w-3xl text-sm leading-6 text-stone-600">
-          Review requests from program heads who need a short edit window on a previous
-          month that has already been submitted or frozen.
+          Review requests from directors and associate directors who need a short edit
+          window on a past month that has already been submitted or frozen.
         </p>
       </Card>
 

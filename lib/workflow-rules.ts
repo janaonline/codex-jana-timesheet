@@ -1,11 +1,13 @@
-import type { ReminderKind, TimesheetStatus } from "@/lib/constants";
+import type { ReminderKind, TimesheetStatus, UserRole } from "@/lib/constants";
 import {
   getMonthKey,
   getPreviousMonthKey,
   isExactAutoSubmitMoment,
   isHistoricalMonth,
+  isPastMonth,
   isPreviousMonth,
 } from "@/lib/time";
+import { isTimesheetOwnerRole } from "@/lib/rbac";
 
 export function isEligibleForAutoSubmit(params: {
   status: TimesheetStatus;
@@ -119,8 +121,9 @@ export function canRequestEdit(params: {
   status: TimesheetStatus;
   monthKey: string;
   reference: Date;
+  role: UserRole;
 }) {
-  if (!isPreviousMonth(params.monthKey, params.reference)) {
+  if (!isTimesheetOwnerRole(params.role) || !isPastMonth(params.monthKey, params.reference)) {
     return false;
   }
 

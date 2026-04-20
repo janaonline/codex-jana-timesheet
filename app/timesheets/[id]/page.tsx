@@ -1,5 +1,6 @@
 import { PortalShell } from "@/components/common/portal-shell";
 import { requireAppSession } from "@/lib/auth";
+import { isTimesheetOwnerRole } from "@/lib/rbac";
 import { getTimesheetForActor } from "@/services/timesheet-service";
 import { TimesheetEditor } from "@/components/timesheets/timesheet-editor";
 
@@ -20,7 +21,7 @@ export default async function TimesheetPage({
       role={session.user.role}
       permissions={session.user.permissions}
       userName={session.user.name ?? session.user.email ?? "User"}
-      currentPath={session.user.role === "PROGRAM_HEAD" ? "/dashboard" : "/admin/edit-requests"}
+      currentPath={isTimesheetOwnerRole(session.user.role) ? "/dashboard" : "/admin/edit-requests"}
     >
       <TimesheetEditor
         initialTimesheet={data.timesheet}

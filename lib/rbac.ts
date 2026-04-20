@@ -1,6 +1,7 @@
 import { AppError } from "@/lib/errors";
 import {
   DEFAULT_ROLE_ACCESS,
+  TIMESHEET_OWNER_ROLES,
   type Permission,
   type UserRole,
 } from "@/lib/constants";
@@ -18,6 +19,8 @@ export function normalizeRoleAccess(raw: unknown): RoleAccessMatrix {
 
   return {
     PROGRAM_HEAD: matrix.PROGRAM_HEAD ?? fallback.PROGRAM_HEAD,
+    ASSOCIATE_DIRECTOR:
+      matrix.ASSOCIATE_DIRECTOR ?? fallback.ASSOCIATE_DIRECTOR,
     ADMIN: matrix.ADMIN ?? fallback.ADMIN,
     OPERATIONS: matrix.OPERATIONS ?? fallback.OPERATIONS,
   };
@@ -52,4 +55,14 @@ export function assertPermission(
 
 export function isAdminRole(role: UserRole) {
   return role === "ADMIN" || role === "OPERATIONS";
+}
+
+const TIMESHEET_OWNER_ROLE_SET: ReadonlySet<UserRole> = new Set(
+  TIMESHEET_OWNER_ROLES,
+);
+
+export function isTimesheetOwnerRole(
+  role: UserRole,
+): role is (typeof TIMESHEET_OWNER_ROLES)[number] {
+  return TIMESHEET_OWNER_ROLE_SET.has(role);
 }

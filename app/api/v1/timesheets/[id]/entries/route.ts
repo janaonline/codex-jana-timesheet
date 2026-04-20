@@ -1,6 +1,7 @@
 import type { UserRole } from "@prisma/client";
 
 import { handleApiRoute } from "@/lib/api-route";
+import { TIMESHEET_OWNER_ROLES } from "@/lib/constants";
 import { apiSuccess, readJson } from "@/lib/response";
 import { requireNumber, requireString } from "@/lib/validators";
 import {
@@ -13,7 +14,7 @@ export async function POST(
   context: { params: Promise<{ id: string }> },
 ) {
   return handleApiRoute(request, {
-    roles: ["PROGRAM_HEAD"],
+    roles: [...TIMESHEET_OWNER_ROLES],
     requireOriginCheck: true,
     actionName: "create_timesheet_entry",
     handler: async (session) => {
