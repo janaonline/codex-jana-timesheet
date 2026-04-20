@@ -1629,7 +1629,7 @@ export async function requestEdit(params: {
     throw new AppError(
       "EDIT_REQUEST_NOT_ALLOWED",
       400,
-      "Edit requests are only available for eligible past-month frozen or submitted timesheets.",
+      "Edit requests are only available for eligible past-month timesheets.",
     );
   }
 

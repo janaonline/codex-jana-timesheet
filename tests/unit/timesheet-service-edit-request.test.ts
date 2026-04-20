@@ -240,6 +240,106 @@ describe("timesheet service historical edit requests", () => {
     ]);
   });
 
+  it("submits an edit request for a previous-month draft and preserves admin routing", async () => {
+    const user = buildUser("PROGRAM_HEAD");
+    const existing = buildTimesheetRecord({
+      user,
+      monthKey: "2026-02",
+      status: "DRAFT",
+      frozenAt: null,
+      submittedAt: null,
+    });
+    const updated = buildTimesheetRecord({
+      user,
+      monthKey: "2026-02",
+      status: "EDIT_REQUESTED",
+      frozenAt: null,
+      submittedAt: null,
+      editRequests: [
+        {
+          id: "request-1",
+          status: "PENDING",
+          reason: "Need to finish a previous-month draft after cutoff.",
+          decisionReason: null,
+          requestedAt: new Date("2026-03-03T06:30:00.000Z"),
+          reviewedAt: null,
+          requestedBy: { name: user.name },
+          reviewedBy: null,
+        },
+      ],
+    });
+    const txMock = {
+      editRequest: {
+        create: vi.fn().mockResolvedValue({
+          id: "request-1",
+          timesheetId: existing.id,
+          requestedById: user.id,
+          reason: "Need to finish a previous-month draft after cutoff.",
+          status: "PENDING",
+          requestedAt: new Date("2026-03-03T06:30:00.000Z"),
+        }),
+      },
+      timesheet: {
+        update: vi.fn().mockResolvedValue({}),
+      },
+    };
+
+    prismaMock.timesheet.findUnique
+      .mockResolvedValueOnce(existing)
+      .mockResolvedValueOnce(updated);
+    prismaMock.user.findMany.mockResolvedValue([
+      {
+        id: "admin-1",
+        name: "Girija Admin",
+        email: "girija@janaagraha.org",
+      },
+    ]);
+    prismaMock.$transaction.mockImplementation(async (callback: (tx: typeof txMock) => unknown) =>
+      callback(txMock),
+    );
+
+    const result = await requestEdit({
+      timesheetId: existing.id,
+      actor: {
+        userId: user.id,
+        role: user.role,
+      },
+      reason: "Need to finish a previous-month draft after cutoff.",
+      reference: new Date("2026-03-03T12:00:00+05:30"),
+    });
+
+    expect(prismaMock.user.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: "admin-1" },
+      }),
+    );
+    expect(txMock.editRequest.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          timesheetId: existing.id,
+          requestedById: user.id,
+          status: "PENDING",
+        }),
+      }),
+    );
+    expect(txMock.timesheet.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: existing.id },
+        data: expect.objectContaining({
+          status: "EDIT_REQUESTED",
+        }),
+      }),
+    );
+    expect(result.timesheet.status).toBe("EDIT_REQUESTED");
+    expect(result.approvers).toEqual([
+      {
+        id: "admin-1",
+        name: "Girija Admin",
+        email: "girija@janaagraha.org",
+      },
+    ]);
+  });
+
   it("returns pending historical requests in the admin list query", async () => {
     prismaMock.editRequest.findMany.mockResolvedValue([
       {

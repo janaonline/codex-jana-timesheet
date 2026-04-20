@@ -60,7 +60,25 @@ describe("workflow rules", () => {
     ).toBe(false);
   });
 
-  it("allows edit requests only for previous-month locked states", () => {
+  it("allows edit requests for eligible past-month owner timesheets", () => {
+    expect(
+      canRequestEdit({
+        status: "DRAFT",
+        monthKey: "2026-02",
+        reference: new Date("2026-03-03T12:00:00+05:30"),
+        role: "PROGRAM_HEAD",
+      }),
+    ).toBe(true);
+
+    expect(
+      canRequestEdit({
+        status: "DRAFT",
+        monthKey: "2026-02",
+        reference: new Date("2026-03-03T12:00:00+05:30"),
+        role: "ASSOCIATE_DIRECTOR",
+      }),
+    ).toBe(true);
+
     expect(
       canRequestEdit({
         status: "FROZEN",
@@ -96,6 +114,15 @@ describe("workflow rules", () => {
         role: "PROGRAM_HEAD",
       }),
     ).toBe(true);
+
+    expect(
+      canRequestEdit({
+        status: "DRAFT",
+        monthKey: "2026-03",
+        reference: new Date("2026-03-10T12:00:00+05:30"),
+        role: "PROGRAM_HEAD",
+      }),
+    ).toBe(false);
 
     expect(
       canRequestEdit({

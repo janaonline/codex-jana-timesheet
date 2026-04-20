@@ -127,7 +127,7 @@ export function canRequestEdit(params: {
     return false;
   }
 
-  return ["SUBMITTED", "AUTO_SUBMITTED", "FROZEN", "REJECTED"].includes(
+  return ["DRAFT", "SUBMITTED", "AUTO_SUBMITTED", "FROZEN", "REJECTED"].includes(
     params.status,
   );
 }
