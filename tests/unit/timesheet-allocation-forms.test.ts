@@ -25,14 +25,30 @@ describe("timesheet-allocation-forms", () => {
     });
   });
 
-  it("appends an added allocation row without mutating the original list", () => {
+  it("prepends an added month allocation row without mutating the original list", () => {
     const existingRows = [createMonthAllocationForm("month-1", "project-1")];
     const nextRow = createMonthAllocationForm("month-2", "project-2");
 
     const result = appendAllocationForm(existingRows, nextRow);
 
-    expect(result).toEqual([existingRows[0], nextRow]);
+    expect(result).toEqual([nextRow, existingRows[0]]);
     expect(existingRows).toEqual([createMonthAllocationForm("month-1", "project-1")]);
+  });
+
+  it("prepends an added week allocation row without mutating the original list", () => {
+    const existingRows = [
+      createWeekAllocationForm("week-1", "project-1"),
+      createWeekAllocationForm("week-2", "project-2"),
+    ];
+    const nextRow = createWeekAllocationForm("week-3", "project-3");
+
+    const result = appendAllocationForm(existingRows, nextRow);
+
+    expect(result).toEqual([nextRow, existingRows[0], existingRows[1]]);
+    expect(existingRows).toEqual([
+      createWeekAllocationForm("week-1", "project-1"),
+      createWeekAllocationForm("week-2", "project-2"),
+    ]);
   });
 
   it("removes only the targeted allocation row", () => {

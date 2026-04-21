@@ -39,7 +39,7 @@ export function createMonthAllocationForm(
 }
 
 export function appendAllocationForm<T>(forms: T[], nextForm: T) {
-  return [...forms, nextForm];
+  return [nextForm, ...forms];
 }
 
 export function removeAllocationForm<T extends { id: string }>(
