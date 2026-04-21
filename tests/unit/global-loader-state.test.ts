@@ -1,4 +1,6 @@
 import {
+  buildRouteLocationKey,
+  completeRouteTransitionRequests,
   getHideDelayMs,
   getLoaderMessage,
   selectDominantLoaderRequest,
@@ -69,6 +71,50 @@ describe("global loader state", () => {
     expect(getLoaderMessage({ message: "Exporting report..." })).toBe(
       "Exporting report...",
     );
+  });
+
+  it("builds distinct route location keys for query-only navigations", () => {
+    expect(buildRouteLocationKey("/admin")).toBe("/admin");
+    expect(
+      buildRouteLocationKey("/admin", "oversightMonthKey=2026-04"),
+    ).toBe("/admin?oversightMonthKey=2026-04");
+    expect(
+      buildRouteLocationKey(
+        "/admin",
+        new URLSearchParams("oversightMonthKey=2026-04&editRequestStatus=ALL"),
+      ),
+    ).toBe("/admin?oversightMonthKey=2026-04&editRequestStatus=ALL");
+  });
+
+  it("clears route requests when a navigation completes", () => {
+    expect(
+      completeRouteTransitionRequests([
+        buildRequest({
+          token: "route-blocking",
+          source: "route",
+          mode: "blocking",
+        }),
+        buildRequest({
+          token: "mutation-blocking",
+          source: "mutation",
+          mode: "blocking",
+        }),
+        buildRequest({
+          token: "form-non-blocking",
+          source: "form",
+          mode: "non-blocking",
+        }),
+      ]),
+    ).toMatchObject([
+      {
+        token: "mutation-blocking",
+        source: "mutation",
+      },
+      {
+        token: "form-non-blocking",
+        source: "form",
+      },
+    ]);
   });
 
   it("enforces the minimum visible duration before hiding", () => {

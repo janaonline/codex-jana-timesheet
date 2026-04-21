@@ -6,7 +6,6 @@ import { requireApiSession } from "@/lib/auth";
 import { AppError } from "@/lib/errors";
 import { prisma } from "@/lib/prisma";
 import {
-  type EmailTemplateConfiguration,
   updateSystemConfiguration,
 } from "@/services/configuration-service";
 import type { RoleAccessMatrix } from "@/lib/rbac";
@@ -60,11 +59,6 @@ export async function updateConfigurationAction(formData: FormData) {
     supportContactEmail: String(formData.get("supportContactEmail") ?? ""),
     notifyAdminOnAutoSubmit: formData.get("notifyAdminOnAutoSubmit") === "on",
     holidayCalendar,
-    emailTemplates: parseJsonField<EmailTemplateConfiguration | undefined>(
-      formData.get("emailTemplates"),
-      "emailTemplates",
-      undefined,
-    ),
     roleAccess: parseJsonField<RoleAccessMatrix | undefined>(
       formData.get("roleAccess"),
       "roleAccess",
@@ -82,7 +76,9 @@ export async function updateApproverMappingsAction(formData: FormData) {
 
   const users = await prisma.user.findMany({
     where: {
-      role: "PROGRAM_HEAD",
+      role: {
+        in: ["PROGRAM_HEAD", "ASSOCIATE_DIRECTOR"],
+      },
       isActive: true,
     },
     select: { id: true },

@@ -24,7 +24,9 @@ import {
   getMonthStart,
   getPreviousMonthKey,
   isCurrentMonth,
+  isPastMonth,
   isPreviousMonth,
+  isValidMonthKey,
 } from "@/lib/time";
 import {
   canEditTimesheet,
@@ -33,6 +35,7 @@ import {
   getTimesheetViewAvailability,
   shouldExpireEditWindow,
 } from "@/lib/workflow-rules";
+import { isTimesheetOwnerRole } from "@/lib/rbac";
 import { safeWriteAuditLog } from "@/services/audit-service";
 import { getSystemConfiguration } from "@/services/configuration-service";
 
@@ -227,6 +230,7 @@ function serializeTimesheet(
   timesheet: TimesheetRecord,
   capacityContext: CapacityContext,
   reference = new Date(),
+  viewerRole: UserRole = timesheet.user.role,
 ): TimesheetView {
   const totalMinutes = timesheet.entries.reduce(
     (sum, entry) => sum + resolveEntryMinutes(entry),
@@ -278,6 +282,7 @@ function serializeTimesheet(
       status: timesheet.status,
       monthKey: timesheet.monthKey,
       reference,
+      role: viewerRole,
     }),
     viewAvailability: getTimesheetViewAvailability({
       status: timesheet.status,
@@ -329,7 +334,7 @@ function serializeTimesheet(
 }
 
 function assertTimesheetAccess(timesheet: TimesheetRecord, actor: Actor) {
-  if (actor.role === "PROGRAM_HEAD" && timesheet.userId !== actor.userId) {
+  if (isTimesheetOwnerRole(actor.role) && timesheet.userId !== actor.userId) {
     throw new AppError(
       "FORBIDDEN",
       403,
@@ -363,9 +368,13 @@ async function getTimesheetRecordOrThrow(timesheetId: string) {
   return timesheet;
 }
 
-async function buildTimesheetView(timesheet: TimesheetRecord, reference = new Date()) {
+async function buildTimesheetView(
+  timesheet: TimesheetRecord,
+  reference = new Date(),
+  viewerRole: UserRole = timesheet.user.role,
+) {
   const capacityContext = await getCapacityContext(timesheet);
-  return serializeTimesheet(timesheet, capacityContext, reference);
+  return serializeTimesheet(timesheet, capacityContext, reference, viewerRole);
 }
 
 async function refreshTimesheetDerivedFields(
@@ -391,17 +400,28 @@ async function refreshTimesheetDerivedFields(
   });
 }
 
+function resolveInitialTimesheetStatus(monthKey: string, reference: Date) {
+  if (!isPastMonth(monthKey, reference)) {
+    return "DRAFT" as const;
+  }
+
+  if (
+    isPreviousMonth(monthKey, reference) &&
+    reference < new Date(`${getDeadlineMetadata(monthKey).autoSubmitDate}T00:00:00+05:30`)
+  ) {
+    return "DRAFT" as const;
+  }
+
+  return "FROZEN" as const;
+}
+
 async function createOrRefreshTimesheet(userId: string, monthKey: string, reference: Date) {
   const user = await getUserOrThrow(userId);
   const summary = await refreshTimesheetDerivedFields(userId, monthKey, {
     dayStates: [],
     legacyLeaveDays: 0,
   });
-  const status =
-    isPreviousMonth(monthKey, reference) &&
-    reference >= new Date(`${getDeadlineMetadata(monthKey).autoSubmitDate}T00:00:00+05:30`)
-      ? "FROZEN"
-      : "DRAFT";
+  const status = resolveInitialTimesheetStatus(monthKey, reference);
 
   return prisma.timesheet.upsert({
     where: {
@@ -981,12 +1001,19 @@ export async function createTimesheetForUser(
   monthKey: string,
   reference = new Date(),
 ) {
-  const allowedMonthKeys = [getMonthKey(reference), getPreviousMonthKey(reference)];
-  if (!allowedMonthKeys.includes(monthKey)) {
+  if (!isValidMonthKey(monthKey)) {
     throw new AppError(
       "INVALID_MONTH",
       400,
-      "Only the current month and previous month can be created in the MVP.",
+      "Month must use the YYYY-MM format.",
+    );
+  }
+
+  if (monthKey > getMonthKey(reference)) {
+    throw new AppError(
+      "INVALID_MONTH",
+      400,
+      "Timesheets can only be opened for the current month or a past month.",
     );
   }
 
@@ -1023,8 +1050,9 @@ export async function getTimesheetForActor(
       ? windowTimesheets.currentTimesheet
       : timesheet.id === windowTimesheets.previousTimesheet.id
         ? windowTimesheets.previousTimesheet
-        : await buildTimesheetView(timesheet, reference);
+        : await buildTimesheetView(timesheet, reference, actor.role);
   const selectableWindowTimesheets = [
+    timesheetView,
     windowTimesheets.currentTimesheet,
     windowTimesheets.previousTimesheet,
   ].filter(
@@ -1595,12 +1623,13 @@ export async function requestEdit(params: {
       status: existing.status,
       monthKey: existing.monthKey,
       reference,
+      role: params.actor.role,
     })
   ) {
     throw new AppError(
       "EDIT_REQUEST_NOT_ALLOWED",
       400,
-      "Edit requests are only available for previous-month frozen or submitted timesheets.",
+      "Edit requests are only available for eligible past-month timesheets.",
     );
   }
 
@@ -1975,11 +2004,13 @@ export async function getDashboardData(userId: string, reference = new Date()) {
   } satisfies DashboardData;
 }
 
-export async function ensurePreviousMonthTimesheetsForAllProgramHeads(reference = new Date()) {
+export async function ensurePreviousMonthTimesheetsForAllTimesheetOwners(reference = new Date()) {
   const monthKey = getPreviousMonthKey(reference);
   const users = await prisma.user.findMany({
     where: {
-      role: "PROGRAM_HEAD",
+      role: {
+        in: ["PROGRAM_HEAD", "ASSOCIATE_DIRECTOR"],
+      },
       isActive: true,
     },
   });

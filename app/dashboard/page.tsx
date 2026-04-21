@@ -7,14 +7,16 @@ import { GlobalLoaderLink } from "@/components/common/global-loader-link";
 import { PortalShell } from "@/components/common/portal-shell";
 import { ProgressBar } from "@/components/common/progress-bar";
 import { PieChart } from "@/components/dashboard/pie-chart";
+import { HistoricalMonthPicker } from "@/components/timesheets/historical-month-picker";
 import { requireAppSession } from "@/lib/auth";
+import { isTimesheetOwnerRole } from "@/lib/rbac";
 import { getDashboardData } from "@/services/timesheet-service";
 import { formatDisplayDate } from "@/lib/time";
 
 export default async function DashboardPage() {
   const session = await requireAppSession();
 
-  if (session.user.role !== "PROGRAM_HEAD") {
+  if (!isTimesheetOwnerRole(session.user.role)) {
     redirect("/admin");
   }
 
@@ -24,12 +26,12 @@ export default async function DashboardPage() {
     <PortalShell
       role={session.user.role}
       permissions={session.user.permissions}
-      userName={session.user.name ?? session.user.email ?? "Program Head"}
+      userName={session.user.name ?? session.user.email ?? "Director"}
       currentPath="/dashboard"
     >
       <Card className="space-y-5">
         <p className="text-xs uppercase tracking-[0.28em] text-stone-500">
-          Program head dashboard
+          Timesheet dashboard
         </p>
         <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
           <div>
@@ -59,6 +61,10 @@ export default async function DashboardPage() {
             </GlobalLoaderLink>
           </div>
         </div>
+        <HistoricalMonthPicker
+          defaultMonthKey={dashboard.previousTimesheet.monthKey}
+          maxMonthKey={dashboard.currentTimesheet.monthKey}
+        />
       </Card>
 
       <div className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">

@@ -14,7 +14,9 @@ vi.mock("@/lib/prisma", () => ({
 }));
 
 import {
+  getAdminOperationalOversight,
   getComplianceReport,
+  getEditRequestReport,
   getHoursUtilizationReport,
 } from "@/services/report-service";
 
@@ -59,9 +61,7 @@ describe("report service", () => {
       .mockResolvedValueOnce([
         {
           monthKey: "2026-03",
-          entries: [
-            { minutes: 720 },
-          ],
+          entries: [{ minutes: 720 }],
         },
       ]);
 
@@ -136,5 +136,181 @@ describe("report service", () => {
         completionPercentage: 75,
       },
     ]);
+  });
+
+  it("builds the edit request report from director and associate director requests only", async () => {
+    prismaMock.editRequest.findMany.mockResolvedValue([
+      {
+        status: "APPROVED",
+        requestedAt: new Date("2026-03-01T04:30:00.000Z"),
+        reviewedAt: new Date("2026-03-02T04:30:00.000Z"),
+        requestedBy: {
+          name: "Ravi Director",
+          role: "PROGRAM_HEAD",
+        },
+        timesheet: {
+          monthKey: "2026-02",
+          assignedMinutes: 600,
+          entries: [{ minutes: 300 }],
+        },
+      },
+      {
+        status: "REJECTED",
+        requestedAt: new Date("2026-03-03T04:30:00.000Z"),
+        reviewedAt: new Date("2026-03-03T10:30:00.000Z"),
+        requestedBy: {
+          name: "Asha Associate Director",
+          role: "ASSOCIATE_DIRECTOR",
+        },
+        timesheet: {
+          monthKey: "2026-01",
+          assignedMinutes: 0,
+          entries: [],
+        },
+      },
+      {
+        status: "EXPIRED",
+        requestedAt: new Date("2026-03-04T04:30:00.000Z"),
+        reviewedAt: null,
+        requestedBy: {
+          name: "Meera Director",
+          role: "PROGRAM_HEAD",
+        },
+        timesheet: {
+          monthKey: "2025-12",
+          assignedMinutes: 480,
+          entries: [{ minutes: 240 }],
+        },
+      },
+    ]);
+
+    const report = await getEditRequestReport();
+
+    expect(prismaMock.editRequest.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          requestedBy: {
+            role: {
+              in: ["PROGRAM_HEAD", "ASSOCIATE_DIRECTOR"],
+            },
+          },
+        },
+      }),
+    );
+    expect(report.summary).toEqual({
+      totalRequests: 3,
+      approvedCount: 1,
+      rejectedCount: 1,
+      expiredCount: 1,
+      approvalRate: 33.33,
+      rejectionRate: 33.33,
+      averageResponseHours: 15,
+    });
+    expect(report.detailedRows).toEqual([
+      expect.objectContaining({
+        requesterName: "Ravi Director",
+        status: "APPROVED",
+        monthLabel: "February 2026",
+        completionPercentage: 50,
+      }),
+      expect.objectContaining({
+        requesterName: "Asha Associate Director",
+        status: "REJECTED",
+        monthLabel: "January 2026",
+        completionPercentage: 0,
+      }),
+      expect.objectContaining({
+        requesterName: "Meera Director",
+        status: "EXPIRED",
+        monthLabel: "December 2025",
+        completionPercentage: 50,
+      }),
+    ]);
+  });
+
+  it("computes admin operational oversight from real-time timesheet and edit-request data", async () => {
+    prismaMock.timesheet.findMany
+      .mockResolvedValueOnce([
+        { monthKey: "2026-03" },
+        { monthKey: "2026-02" },
+      ])
+      .mockResolvedValueOnce([
+        {
+          monthKey: "2026-02",
+          status: "SUBMITTED",
+          submittedAt: new Date("2026-03-05T18:29:59.000Z"),
+        },
+        {
+          monthKey: "2026-02",
+          status: "AUTO_SUBMITTED",
+          submittedAt: new Date("2026-03-05T18:30:00.000Z"),
+        },
+        {
+          monthKey: "2026-02",
+          status: "DRAFT",
+          submittedAt: null,
+        },
+        {
+          monthKey: "2026-02",
+          status: "REJECTED",
+          submittedAt: null,
+        },
+      ]);
+    prismaMock.editRequest.findMany.mockResolvedValue([
+      {
+        status: "PENDING",
+        requestedAt: new Date("2026-03-06T04:30:00.000Z"),
+        reviewedAt: null,
+      },
+      {
+        status: "APPROVED",
+        requestedAt: new Date("2026-03-01T04:30:00.000Z"),
+        reviewedAt: new Date("2026-03-02T04:30:00.000Z"),
+      },
+      {
+        status: "REJECTED",
+        requestedAt: new Date("2026-03-03T04:30:00.000Z"),
+        reviewedAt: new Date("2026-03-03T10:30:00.000Z"),
+      },
+      {
+        status: "EXPIRED",
+        requestedAt: new Date("2026-03-04T04:30:00.000Z"),
+        reviewedAt: null,
+      },
+    ]);
+
+    const overview = await getAdminOperationalOversight({
+      monthKey: "2026-02",
+      editRequestStatus: "REJECTED",
+    });
+
+    expect(overview.selectedMonthKey).toBe("2026-02");
+    expect(overview.selectedMonthLabel).toBe("February 2026");
+    expect(overview.availableMonths).toEqual([
+      {
+        monthKey: "2026-03",
+        monthLabel: "March 2026",
+      },
+      {
+        monthKey: "2026-02",
+        monthLabel: "February 2026",
+      },
+    ]);
+    expect(overview.summary).toEqual({
+      onTimeSubmissions: 1,
+      pendingTimesheets: 2,
+      averageResponseHours: 15,
+    });
+    expect(overview.editRequests).toEqual({
+      selectedStatus: "REJECTED",
+      count: 1,
+      countsByStatus: {
+        total: 4,
+        pending: 1,
+        approved: 1,
+        rejected: 1,
+        expired: 1,
+      },
+    });
   });
 });

@@ -86,14 +86,17 @@ async function buildEditRequestPdf(report: EditRequestReport) {
   doc.moveDown();
   addTableRows(doc, [
     `Total requests: ${report.summary.totalRequests}`,
+    `Approved requests: ${report.summary.approvedCount}`,
+    `Rejected requests: ${report.summary.rejectedCount}`,
+    `Expired requests: ${report.summary.expiredCount}`,
     `Approval rate: ${report.summary.approvalRate}%`,
     `Rejection rate: ${report.summary.rejectionRate}%`,
     `Average response hours: ${report.summary.averageResponseHours}`,
     "",
-    "Recent requests:",
-    ...report.requests.slice(0, 20).map(
+    "Detailed rows:",
+    ...report.detailedRows.slice(0, 20).map(
       (request) =>
-        `${request.requesterName} | ${request.monthLabel} | ${request.status} | ${request.responseHours ?? "Pending"} hours`,
+        `${request.requesterName} | ${request.requestedAt} | ${request.status} | ${request.monthLabel} | ${request.completionPercentage}% complete`,
     ),
   ]);
   return streamToBuffer(doc);
@@ -170,16 +173,28 @@ function buildEditRequestCsv(report: EditRequestReport) {
   return toCsv([
     ["Metric", "Value"],
     ["Total requests", report.summary.totalRequests],
+    ["Approved requests", report.summary.approvedCount],
+    ["Rejected requests", report.summary.rejectedCount],
+    ["Expired requests", report.summary.expiredCount],
     ["Approval rate", report.summary.approvalRate],
     ["Rejection rate", report.summary.rejectionRate],
     ["Average response hours", report.summary.averageResponseHours],
     [],
-    ["Requester", "Month", "Status", "Requested At", "Reviewed At", "Response Hours"],
-    ...report.requests.map((request) => [
+    [
+      "Requester",
+      "Requested At",
+      "Status",
+      "Month",
+      "Completion Percentage",
+      "Reviewed At",
+      "Response Hours",
+    ],
+    ...report.detailedRows.map((request) => [
       request.requesterName,
-      request.monthLabel,
-      request.status,
       request.requestedAt,
+      request.status,
+      request.monthLabel,
+      request.completionPercentage,
       request.reviewedAt ?? "",
       request.responseHours ?? "",
     ]),

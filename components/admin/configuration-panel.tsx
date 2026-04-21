@@ -1,6 +1,5 @@
 import { Card } from "@/components/common/card";
 import { Button } from "@/components/common/button";
-import { EmailTemplateManager } from "@/components/admin/email-template-manager";
 import { GlobalLoaderFormStatus } from "@/components/common/global-loader-form-status";
 import type { SystemConfigurationView } from "@/services/configuration-service";
 
@@ -108,16 +107,6 @@ export function ConfigurationPanel({
               defaultValue={config.holidayCalendar.join(",")}
             />
           </label>
-          <div className="space-y-4 rounded-[28px] border border-stone-200 bg-white p-4 sm:p-5">
-            <div>
-              <p className="text-sm font-semibold text-stone-950">Email templates</p>
-              <p className="mt-1 text-sm leading-6 text-stone-600">
-                Edit the subject, HTML body, and plain-text fallback for each system
-                email. Preview uses safe sample data only.
-              </p>
-            </div>
-            <EmailTemplateManager templates={config.emailTemplates} />
-          </div>
           <label className="block text-sm text-stone-700">
             Role access controls (JSON)
             <textarea

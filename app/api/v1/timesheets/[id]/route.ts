@@ -1,6 +1,7 @@
 import type { UserRole } from "@prisma/client";
 
 import { handleApiRoute } from "@/lib/api-route";
+import { TIMESHEET_OWNER_ROLES } from "@/lib/constants";
 import { apiSuccess, readJson } from "@/lib/response";
 import { requireArray, requireInteger } from "@/lib/validators";
 import {
@@ -31,7 +32,7 @@ export async function PATCH(
   context: { params: Promise<{ id: string }> },
 ) {
   return handleApiRoute(request, {
-    roles: ["PROGRAM_HEAD"],
+    roles: [...TIMESHEET_OWNER_ROLES],
     requireOriginCheck: true,
     actionName: "save_timesheet_draft",
     handler: async (session) => {

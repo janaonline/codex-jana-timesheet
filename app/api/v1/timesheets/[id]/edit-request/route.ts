@@ -2,10 +2,10 @@ import type { UserRole } from "@prisma/client";
 
 import { handleApiRoute } from "@/lib/api-route";
 import { runAfterResponse } from "@/lib/background-task";
-import { apiSuccess, readJson } from "@/lib/response";
+import { REQUEST_EDIT_REASON_LIMIT, TIMESHEET_OWNER_ROLES } from "@/lib/constants";
 import { env } from "@/lib/env";
+import { apiSuccess, readJson } from "@/lib/response";
 import { requireString } from "@/lib/validators";
-import { REQUEST_EDIT_REASON_LIMIT } from "@/lib/constants";
 import { requestEdit } from "@/services/timesheet-service";
 import { sendEditRequestAlertMessage } from "@/services/email-service";
 
@@ -14,7 +14,7 @@ export async function POST(
   context: { params: Promise<{ id: string }> },
 ) {
   return handleApiRoute(request, {
-    roles: ["PROGRAM_HEAD"],
+    roles: [...TIMESHEET_OWNER_ROLES],
     requireOriginCheck: true,
     actionName: "request_timesheet_edit",
     handler: async (session) => {

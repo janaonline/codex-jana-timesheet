@@ -14,7 +14,7 @@ import { isAppError, AppError } from "@/lib/errors";
 import { env, hasAzureSsoConfig, isAzureSsoEnabled, isPasswordAuthEnabled } from "@/lib/env";
 import { requiresPasswordSetup } from "@/lib/password-auth";
 import { prisma } from "@/lib/prisma";
-import { getPermissionsForRole } from "@/lib/rbac";
+import { getPermissionsForRole, isTimesheetOwnerRole } from "@/lib/rbac";
 import { safeWriteAuditLog } from "@/services/audit-service";
 import { authorizeOtpUser, authorizePasswordUser } from "@/services/auth-service";
 import { getSystemConfiguration } from "@/services/configuration-service";
@@ -391,7 +391,7 @@ export async function getAppSession() {
 }
 
 export function getHomePathForRole(role: UserRole) {
-  return role === "PROGRAM_HEAD" ? "/dashboard" : "/admin";
+  return isTimesheetOwnerRole(role) ? "/dashboard" : "/admin";
 }
 
 export function getLoginPath(session?: Session | null) {

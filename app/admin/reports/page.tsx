@@ -154,24 +154,82 @@ export default async function ReportsPage({
             <div>
               <h3 className="text-2xl font-semibold text-stone-950">Edit Request Report</h3>
               <p className="text-sm text-stone-600">
-                Approval rate {editRequests.summary.approvalRate}% | Rejection rate{" "}
-                {editRequests.summary.rejectionRate}%
+                Director and Associate Director requests only.
               </p>
             </div>
             <ReportExportActions type="edit-requests" />
           </div>
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-            {editRequests.requests.slice(0, 9).map((item) => (
-              <div
-                key={`${item.requesterName}-${item.requestedAt}`}
-                className="rounded-[24px] border border-stone-200 bg-stone-50 px-4 py-4 text-sm"
-              >
-                <p className="font-semibold text-stone-900">{item.requesterName}</p>
-                <p className="mt-1 text-stone-600">
-                  {item.monthLabel} | {item.status}
-                </p>
-              </div>
-            ))}
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+            <Card>
+              <p className="text-xs uppercase tracking-[0.22em] text-stone-500">Total</p>
+              <p className="mt-2 text-2xl font-semibold text-stone-950">
+                {editRequests.summary.totalRequests}
+              </p>
+            </Card>
+            <Card>
+              <p className="text-xs uppercase tracking-[0.22em] text-stone-500">Approved</p>
+              <p className="mt-2 text-2xl font-semibold text-stone-950">
+                {editRequests.summary.approvedCount}
+              </p>
+              <p className="mt-1 text-sm text-stone-600">
+                {editRequests.summary.approvalRate}% approval rate
+              </p>
+            </Card>
+            <Card>
+              <p className="text-xs uppercase tracking-[0.22em] text-stone-500">Rejected</p>
+              <p className="mt-2 text-2xl font-semibold text-stone-950">
+                {editRequests.summary.rejectedCount}
+              </p>
+              <p className="mt-1 text-sm text-stone-600">
+                {editRequests.summary.rejectionRate}% rejection rate
+              </p>
+            </Card>
+            <Card>
+              <p className="text-xs uppercase tracking-[0.22em] text-stone-500">Expired</p>
+              <p className="mt-2 text-2xl font-semibold text-stone-950">
+                {editRequests.summary.expiredCount}
+              </p>
+            </Card>
+            <Card>
+              <p className="text-xs uppercase tracking-[0.22em] text-stone-500">
+                Average response
+              </p>
+              <p className="mt-2 text-2xl font-semibold text-stone-950">
+                {editRequests.summary.averageResponseHours}h
+              </p>
+            </Card>
+          </div>
+          <div className="overflow-x-auto rounded-[24px] border border-stone-200">
+            <table className="min-w-full divide-y divide-stone-200 text-left text-sm">
+              <thead className="bg-stone-50 text-stone-600">
+                <tr>
+                  <th className="px-4 py-3 font-medium">Requester</th>
+                  <th className="px-4 py-3 font-medium">Requested at</th>
+                  <th className="px-4 py-3 font-medium">Status</th>
+                  <th className="px-4 py-3 font-medium">Month</th>
+                  <th className="px-4 py-3 font-medium">Completion</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-stone-100 bg-white text-stone-700">
+                {editRequests.detailedRows.slice(0, 12).map((item) => (
+                  <tr key={`${item.requesterName}-${item.requestedAt}-${item.monthKey}`}>
+                    <td className="px-4 py-3">{item.requesterName}</td>
+                    <td className="px-4 py-3">
+                      {new Intl.DateTimeFormat("en-IN", {
+                        day: "2-digit",
+                        month: "short",
+                        year: "numeric",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      }).format(new Date(item.requestedAt))}
+                    </td>
+                    <td className="px-4 py-3">{item.status}</td>
+                    <td className="px-4 py-3">{item.monthLabel}</td>
+                    <td className="px-4 py-3">{item.completionPercentage}%</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         </Card>
       </div>

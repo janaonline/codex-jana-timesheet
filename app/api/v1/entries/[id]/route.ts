@@ -2,6 +2,7 @@ import type { UserRole } from "@prisma/client";
 
 import { prisma } from "@/lib/prisma";
 import { handleApiRoute } from "@/lib/api-route";
+import { TIMESHEET_OWNER_ROLES } from "@/lib/constants";
 import { apiSuccess, readJson } from "@/lib/response";
 import { requireNumber, requireString } from "@/lib/validators";
 import {
@@ -27,7 +28,7 @@ export async function PATCH(
   context: { params: Promise<{ id: string }> },
 ) {
   return handleApiRoute(request, {
-    roles: ["PROGRAM_HEAD"],
+    roles: [...TIMESHEET_OWNER_ROLES],
     requireOriginCheck: true,
     actionName: "update_timesheet_entry",
     handler: async (session) => {
@@ -74,7 +75,7 @@ export async function DELETE(
   context: { params: Promise<{ id: string }> },
 ) {
   return handleApiRoute(request, {
-    roles: ["PROGRAM_HEAD"],
+    roles: [...TIMESHEET_OWNER_ROLES],
     requireOriginCheck: true,
     actionName: "delete_timesheet_entry",
     handler: async (session) => {

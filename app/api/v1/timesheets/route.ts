@@ -1,4 +1,5 @@
 import { handleApiRoute } from "@/lib/api-route";
+import { TIMESHEET_OWNER_ROLES } from "@/lib/constants";
 import { apiSuccess, readJson } from "@/lib/response";
 import { requireString } from "@/lib/validators";
 import {
@@ -16,7 +17,7 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   return handleApiRoute(request, {
-    roles: ["PROGRAM_HEAD"],
+    roles: [...TIMESHEET_OWNER_ROLES],
     requireOriginCheck: true,
     actionName: "create_timesheet",
     handler: async (session) => {

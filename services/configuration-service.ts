@@ -40,6 +40,10 @@ export type SystemConfigurationView = {
   supportContactEmail: string;
 };
 
+export type SystemConfigurationUpdateInput = Partial<
+  Omit<SystemConfigurationView, "emailTemplates">
+>;
+
 const DEFAULT_CONFIGURATION: SystemConfigurationView = {
   id: "default",
   reminderDays: {
@@ -224,7 +228,7 @@ export async function getSystemConfiguration() {
   }
 }
 
-export async function updateSystemConfiguration(input: Partial<SystemConfigurationView>) {
+export async function updateSystemConfiguration(input: SystemConfigurationUpdateInput) {
   const current = await getSystemConfiguration();
 
   const updated = await prisma.systemConfiguration.update({
@@ -237,7 +241,6 @@ export async function updateSystemConfiguration(input: Partial<SystemConfigurati
         input.inactivityTimeoutMins ?? current.inactivityTimeoutMins,
       holidayCalendar: input.holidayCalendar ?? current.holidayCalendar,
       roleAccess: input.roleAccess ?? current.roleAccess,
-      emailTemplates: input.emailTemplates ?? current.emailTemplates,
       notifyAdminOnAutoSubmit:
         input.notifyAdminOnAutoSubmit ?? current.notifyAdminOnAutoSubmit,
       supportContactEmail: input.supportContactEmail ?? current.supportContactEmail,

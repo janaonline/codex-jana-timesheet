@@ -1,6 +1,7 @@
 import type { UserRole } from "@prisma/client";
 
 import { handleApiRoute } from "@/lib/api-route";
+import { TIMESHEET_OWNER_ROLES } from "@/lib/constants";
 import { apiSuccess, readJson } from "@/lib/response";
 import { requireInteger, requireNumber, requireString } from "@/lib/validators";
 import { applyMonthAllocation } from "@/services/timesheet-service";
@@ -10,7 +11,7 @@ export async function POST(
   context: { params: Promise<{ id: string }> },
 ) {
   return handleApiRoute(request, {
-    roles: ["PROGRAM_HEAD"],
+    roles: [...TIMESHEET_OWNER_ROLES],
     requireOriginCheck: true,
     actionName: "apply_timesheet_month_allocation",
     handler: async (session) => {

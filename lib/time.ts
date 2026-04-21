@@ -52,12 +52,26 @@ export function isCurrentMonth(monthKey: string, reference = new Date()) {
   return monthKey === getMonthKey(reference);
 }
 
+export function isPastMonth(monthKey: string, reference = new Date()) {
+  return monthKey < getMonthKey(reference);
+}
+
 export function isPreviousMonth(monthKey: string, reference = new Date()) {
   return monthKey === getPreviousMonthKey(reference);
 }
 
 export function isHistoricalMonth(monthKey: string, reference = new Date()) {
   return !isCurrentMonth(monthKey, reference) && !isPreviousMonth(monthKey, reference);
+}
+
+export function isValidMonthKey(monthKey: string) {
+  if (!/^\d{4}-\d{2}$/.test(monthKey)) {
+    return false;
+  }
+
+  const [, monthPart] = monthKey.split("-");
+  const month = Number(monthPart);
+  return month >= 1 && month <= 12;
 }
 
 export function getIstParts(reference = new Date()) {
@@ -149,6 +163,17 @@ export function getDeadlineMetadata(monthKey: string) {
     submissionDeadlineDate: getMonthEnd(monthKey),
     autoSubmitDate,
   };
+}
+
+export function getOnTimeSubmissionCutoff(monthKey: string) {
+  const [year, month] = monthKey.split("-").map(Number);
+  const nextMonthDate = new Date(Date.UTC(year, month - 1, 1));
+  const cutoffReference = addMonths(nextMonthDate, 1);
+  const cutoffDate = `${cutoffReference.getUTCFullYear()}-${pad(
+    cutoffReference.getUTCMonth() + 1,
+  )}-05`;
+
+  return fromZonedTime(`${cutoffDate}T23:59:59.999`, IST_TIMEZONE);
 }
 
 export function getReminderRun(

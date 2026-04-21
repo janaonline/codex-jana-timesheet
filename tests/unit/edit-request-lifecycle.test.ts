@@ -7,6 +7,7 @@ describe("edit request lifecycle", () => {
         status: "REJECTED",
         monthKey: "2026-02",
         reference: new Date("2026-03-15T12:00:00+05:30"),
+        role: "PROGRAM_HEAD",
       }),
     ).toBe(true);
   });
