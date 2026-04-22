@@ -41,7 +41,7 @@ const GlobalLoaderContext = createContext<GlobalLoaderContextValue | null>(null)
 
 function LoaderRing() {
   return (
-    <span className="inline-flex h-11 w-11 items-center justify-center rounded-full border-2 border-stone-300/80 border-t-amber-300 animate-spin" />
+    <span className="inline-flex h-11 w-11 items-center justify-center rounded-full border-2 border-stone-300/80 border-t-amber-300 animate-spin dark:border-stone-700/80 dark:border-t-amber-300" />
   );
 }
 
@@ -267,11 +267,11 @@ export function GlobalLoaderProvider({ children }: { children: React.ReactNode }
             <div className="flex items-center gap-4">
               <LoaderRing />
               <div className="min-w-0">
-                <p className="text-xs font-semibold uppercase tracking-[0.24em] text-stone-500">
+                <p className="text-xs font-semibold uppercase tracking-[0.24em] text-stone-500 dark:text-stone-400">
                   Please wait...
                 </p>
                 {actionText ? (
-                  <p className="mt-2 text-sm font-medium text-stone-700">{actionText}</p>
+                  <p className="mt-2 text-sm font-medium text-stone-700 dark:text-stone-300">{actionText}</p>
                 ) : null}
               </div>
             </div>
@@ -284,16 +284,16 @@ export function GlobalLoaderProvider({ children }: { children: React.ReactNode }
             <div className="flex items-start gap-4">
               <LoaderRing />
               <div className="min-w-0 flex-1">
-                <p className="text-xs font-semibold uppercase tracking-[0.24em] text-stone-500">
+                <p className="text-xs font-semibold uppercase tracking-[0.24em] text-stone-500 dark:text-stone-400">
                   Please wait...
                 </p>
                 {actionText ? (
-                  <p className="mt-2 text-sm font-medium text-stone-700">{actionText}</p>
+                  <p className="mt-2 text-sm font-medium text-stone-700 dark:text-stone-300">{actionText}</p>
                 ) : null}
               </div>
               <button
                 type="button"
-                className="rounded-full border border-stone-200 px-3 py-1 text-xs font-semibold text-stone-600 transition hover:bg-stone-100 focus:outline-none focus:ring-2 focus:ring-stone-200 focus:ring-offset-2"
+                className="rounded-full border border-stone-200 px-3 py-1 text-xs font-semibold text-stone-600 transition hover:bg-stone-100 focus:outline-none focus:ring-2 focus:ring-stone-200 focus:ring-offset-2 dark:border-stone-700 dark:text-stone-400 dark:hover:bg-stone-800 dark:focus:ring-stone-700"
                 onClick={minimizeNonBlockingLoader}
               >
                 Minimize

@@ -8,6 +8,7 @@ import { Card } from "@/components/common/card";
 import { useGlobalLoader } from "@/components/common/global-loader-provider";
 import { Input } from "@/components/common/input";
 import { Modal } from "@/components/common/modal";
+import { ThemeToggle } from "@/components/common/theme-toggle";
 import {
   OTP_AUTH_PROVIDER_ID,
   PASSWORD_AUTH_PROVIDER_ID,
@@ -225,7 +226,10 @@ export function LoginScreen({
   }
 
   return (
-    <main className="min-h-screen bg-white px-4 py-8 text-stone-950 sm:px-6 lg:px-8">
+    <main className="relative min-h-screen bg-(--color-bg) px-4 py-8 text-(--color-text) sm:px-6 lg:px-8">
+      {/* Theme toggle — fixed top-right, visible on all login views */}
+      <ThemeToggle className="fixed right-4 top-4 z-10" />
+
       <Modal
         open={sessionExpiredOpen}
         title="Session expired"
@@ -233,7 +237,7 @@ export function LoginScreen({
         hideCloseButton
       >
         <div className="space-y-4">
-          <p className="text-sm leading-6 text-stone-600">
+          <p className="text-sm leading-6 text-(--color-text-muted)">
             Your session has expired due to inactivity. Log out to clear the expired
             session and return to the sign-in screen.
           </p>
@@ -247,14 +251,14 @@ export function LoginScreen({
 
       <div className="mx-auto flex min-h-[calc(100vh-64px)] max-w-6xl flex-col justify-center gap-8 lg:grid lg:grid-cols-[1.05fr_0.95fr] lg:items-center">
         <section className="space-y-6">
-          <div className="inline-flex rounded-full border border-stone-200 bg-stone-50 px-4 py-2 text-xs font-semibold uppercase tracking-[0.24em] text-stone-700">
+          <div className="inline-flex rounded-full border border-(--color-border) bg-(--color-surface-raised) px-4 py-2 text-xs font-semibold uppercase tracking-[0.24em] text-(--color-text-subtle)">
             Janaagraha internal portal
           </div>
           <div className="space-y-4">
-            <h1 className="max-w-2xl text-4xl font-semibold tracking-tight text-stone-950 sm:text-5xl">
+            <h1 className="max-w-2xl text-4xl font-semibold tracking-tight text-(--color-text) sm:text-5xl">
               Directors Timesheet Management System
             </h1>
-            <p className="max-w-2xl text-base leading-7 text-stone-600 sm:text-lg">
+            <p className="max-w-2xl text-base leading-7 text-(--color-text-muted) sm:text-lg">
               Monthly timesheets, reminders, controlled edit requests, and reporting in
               one clear workflow built for internal teams.
             </p>
@@ -267,7 +271,7 @@ export function LoginScreen({
             ].map((item) => (
               <div
                 key={item}
-                className="rounded-3xl border border-stone-200 bg-stone-50 px-5 py-5 text-sm leading-6 text-stone-700"
+                className="rounded-3xl border border-(--color-border) bg-(--color-surface-raised) px-5 py-5 text-sm leading-6 text-(--color-text-subtle)"
               >
                 {item}
               </div>
@@ -275,7 +279,7 @@ export function LoginScreen({
           </div>
         </section>
 
-        <Card className="rounded-[32px] border-stone-200 bg-white p-6 sm:p-8">
+        <Card className="rounded-[32px] border-(--color-border) bg-(--color-surface) p-6 sm:p-8">
           <div className="mb-6 flex flex-wrap gap-2">
             {[
               { key: "login", label: "Sign in" },
@@ -287,8 +291,8 @@ export function LoginScreen({
                 type="button"
                 className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
                   view === item.key
-                    ? "bg-amber-300 text-stone-950"
-                    : "bg-stone-100 text-stone-600 hover:bg-stone-200"
+                    ? "bg-(--color-primary) text-(--color-text)"
+                    : "bg-(--color-surface-raised) text-(--color-text-muted) hover:bg-(--color-border)"
                 }`}
                 onClick={() => {
                   setError(null);
@@ -303,12 +307,12 @@ export function LoginScreen({
           {view === "login" ? (
             <form className="space-y-4" onSubmit={handlePasswordSignIn}>
               <div className="space-y-2">
-                <h2 className="text-2xl font-semibold text-stone-950">Sign in</h2>
-                <p className="text-sm leading-6 text-stone-600">
+                <h2 className="text-2xl font-semibold text-(--color-text)">Sign in</h2>
+                <p className="text-sm leading-6 text-(--color-text-muted)">
                   Use your Janaagraha email address and password to continue.
                 </p>
               </div>
-              <label className="block text-sm font-medium text-stone-700">
+              <label className="block text-sm font-medium text-(--color-text-subtle)">
                 Email
                 <Input
                   className="mt-2"
@@ -320,7 +324,7 @@ export function LoginScreen({
                   required
                 />
               </label>
-              <label className="block text-sm font-medium text-stone-700">
+              <label className="block text-sm font-medium text-(--color-text-subtle)">
                 Password
                 <Input
                   className="mt-2"
@@ -333,17 +337,17 @@ export function LoginScreen({
                 />
               </label>
               {error ? (
-                <p className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+                <p className="rounded-2xl border border-(--color-error-border) bg-(--color-error-bg) px-4 py-3 text-sm text-(--color-error-text)">
                   {error}
                 </p>
               ) : null}
               <Button className="w-full" type="submit" disabled={pending}>
                 {pending ? "Signing in..." : "Sign in"}
               </Button>
-              <div className="flex flex-col gap-3 text-sm text-stone-600 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex flex-col gap-3 text-sm text-(--color-text-muted) sm:flex-row sm:items-center sm:justify-between">
                 <button
                   type="button"
-                  className="text-left font-medium text-stone-900 underline underline-offset-4"
+                  className="text-left font-medium text-(--color-text) underline underline-offset-4"
                   onClick={() => {
                     setError(null);
                     setView("forgot");
@@ -353,7 +357,7 @@ export function LoginScreen({
                 </button>
                 <button
                   type="button"
-                  className="text-left font-medium text-stone-900 underline underline-offset-4"
+                  className="text-left font-medium text-(--color-text) underline underline-offset-4"
                   onClick={() => {
                     setError(null);
                     setView("activate");
@@ -374,16 +378,16 @@ export function LoginScreen({
               }}
             >
               <div className="space-y-2">
-                <h2 className="text-2xl font-semibold text-stone-950">
+                <h2 className="text-2xl font-semibold text-(--color-text)">
                   {view === "forgot" ? "Reset your password" : "Activate your access"}
                 </h2>
-                <p className="text-sm leading-6 text-stone-600">
+                <p className="text-sm leading-6 text-(--color-text-muted)">
                   {view === "forgot"
-                    ? "Enter your work email and we’ll send a one-time code so you can create a new password."
-                    : "Enter your work email and we’ll send a one-time code to help you create your password."}
+                    ? "Enter your work email and we'll send a one-time code so you can create a new password."
+                    : "Enter your work email and we'll send a one-time code to help you create your password."}
                 </p>
               </div>
-              <label className="block text-sm font-medium text-stone-700">
+              <label className="block text-sm font-medium text-(--color-text-subtle)">
                 Work email
                 <Input
                   className="mt-2"
@@ -396,7 +400,7 @@ export function LoginScreen({
                 />
               </label>
               {error ? (
-                <p className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+                <p className="rounded-2xl border border-(--color-error-border) bg-(--color-error-bg) px-4 py-3 text-sm text-(--color-error-text)">
                   {error}
                 </p>
               ) : null}
@@ -405,7 +409,7 @@ export function LoginScreen({
               </Button>
               <button
                 type="button"
-                className="text-sm font-medium text-stone-700 underline underline-offset-4"
+                className="text-sm font-medium text-(--color-text-subtle) underline underline-offset-4"
                 onClick={() => {
                   setError(null);
                   setView("login");
@@ -419,25 +423,25 @@ export function LoginScreen({
           {view === "verify-otp" ? (
             <form className="space-y-4" onSubmit={handleOtpVerification}>
               <div className="space-y-2">
-                <h2 className="text-2xl font-semibold text-stone-950">
+                <h2 className="text-2xl font-semibold text-(--color-text)">
                   {otpHeading.title}
                 </h2>
-                <p className="text-sm leading-6 text-stone-600">
+                <p className="text-sm leading-6 text-(--color-text-muted)">
                   {otpHeading.description}
                 </p>
               </div>
               {otpMeta ? (
-                <div className="rounded-2xl border border-stone-200 bg-stone-50 px-4 py-4 text-sm text-stone-700">
+                <div className="rounded-2xl border border-(--color-border) bg-(--color-surface-raised) px-4 py-4 text-sm text-(--color-text-subtle)">
                   <p>{otpMeta.message}</p>
-                  <p className="mt-1 font-medium text-stone-950">
+                  <p className="mt-1 font-medium text-(--color-text)">
                     Destination: {otpMeta.destinationHint}
                   </p>
-                  <p className="mt-1 text-stone-600">
+                  <p className="mt-1 text-(--color-text-muted)">
                     The code expires in {otpMeta.expiresInMinutes} minutes.
                   </p>
                 </div>
               ) : null}
-              <label className="block text-sm font-medium text-stone-700">
+              <label className="block text-sm font-medium text-(--color-text-subtle)">
                 One-time code
                 <Input
                   className="mt-2 text-center text-lg tracking-[0.36em]"
@@ -454,17 +458,17 @@ export function LoginScreen({
                 />
               </label>
               {error ? (
-                <p className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+                <p className="rounded-2xl border border-(--color-error-border) bg-(--color-error-bg) px-4 py-3 text-sm text-(--color-error-text)">
                   {error}
                 </p>
               ) : null}
               <Button className="w-full" type="submit" disabled={pending || otpCode.length !== 6}>
                 {pending ? "Verifying..." : "Verify code"}
               </Button>
-              <div className="flex flex-col gap-3 text-sm text-stone-600 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex flex-col gap-3 text-sm text-(--color-text-muted) sm:flex-row sm:items-center sm:justify-between">
                 <button
                   type="button"
-                  className="font-medium text-stone-900 underline underline-offset-4 disabled:text-stone-400"
+                  className="font-medium text-(--color-text) underline underline-offset-4 disabled:text-(--color-text-placeholder)"
                   onClick={() => {
                     void requestOtp(otpPurpose);
                   }}
@@ -474,7 +478,7 @@ export function LoginScreen({
                 </button>
                 <button
                   type="button"
-                  className="font-medium text-stone-700 underline underline-offset-4"
+                  className="font-medium text-(--color-text-subtle) underline underline-offset-4"
                   onClick={() => {
                     setError(null);
                     setView(otpPurpose === "FORGOT_PASSWORD" ? "forgot" : "activate");

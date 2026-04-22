@@ -32,9 +32,9 @@ export default async function ReportsPage({
       currentPath="/admin/reports"
     >
       <Card className="space-y-5">
-        <p className="text-xs uppercase tracking-[0.28em] text-stone-500">Reports and exports</p>
-        <h2 className="text-4xl font-semibold text-stone-950">MVP reporting suite</h2>
-        <p className="max-w-3xl text-sm leading-6 text-stone-600">
+        <p className="text-xs uppercase tracking-[0.28em] text-(--color-text-muted)">Reports and exports</p>
+        <h2 className="text-4xl font-semibold text-(--color-text)">MVP reporting suite</h2>
+        <p className="max-w-3xl text-sm leading-6 text-(--color-text-muted)">
           Review the approved compliance, utilization, and edit-request reports and
           export them in PDF or CSV format.
         </p>
@@ -44,35 +44,35 @@ export default async function ReportsPage({
         <Card className="space-y-4">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
             <div>
-              <h3 className="text-2xl font-semibold text-stone-950">
+              <h3 className="text-2xl font-semibold text-(--color-text)">
                 Submission Compliance Report
               </h3>
-              <p className="text-sm text-stone-600">{compliance.monthLabel}</p>
+              <p className="text-sm text-(--color-text-muted)">{compliance.monthLabel}</p>
             </div>
             <ReportExportActions type="compliance" monthKey={compliance.monthKey} />
           </div>
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             <Card>
-              <p className="text-xs uppercase tracking-[0.22em] text-stone-500">On-time</p>
-              <p className="mt-2 text-2xl font-semibold text-stone-950">
+              <p className="text-xs uppercase tracking-[0.22em] text-(--color-text-muted)">On-time</p>
+              <p className="mt-2 text-2xl font-semibold text-(--color-text)">
                 {compliance.summary.onTimeSubmissions}
               </p>
             </Card>
             <Card>
-              <p className="text-xs uppercase tracking-[0.22em] text-stone-500">Pending</p>
-              <p className="mt-2 text-2xl font-semibold text-stone-950">
+              <p className="text-xs uppercase tracking-[0.22em] text-(--color-text-muted)">Pending</p>
+              <p className="mt-2 text-2xl font-semibold text-(--color-text)">
                 {compliance.summary.pendingTimesheets}
               </p>
             </Card>
             <Card>
-              <p className="text-xs uppercase tracking-[0.22em] text-stone-500">Auto-submit success</p>
-              <p className="mt-2 text-2xl font-semibold text-stone-950">
+              <p className="text-xs uppercase tracking-[0.22em] text-(--color-text-muted)">Auto-submit success</p>
+              <p className="mt-2 text-2xl font-semibold text-(--color-text)">
                 {compliance.summary.autoSubmitSuccessCount}
               </p>
             </Card>
             <Card>
-              <p className="text-xs uppercase tracking-[0.22em] text-stone-500">Auto-submit failure</p>
-              <p className="mt-2 text-2xl font-semibold text-stone-950">
+              <p className="text-xs uppercase tracking-[0.22em] text-(--color-text-muted)">Auto-submit failure</p>
+              <p className="mt-2 text-2xl font-semibold text-(--color-text)">
                 {compliance.summary.autoSubmitFailureCount}
               </p>
             </Card>
@@ -82,10 +82,10 @@ export default async function ReportsPage({
         <Card className="space-y-4">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
             <div>
-              <h3 className="text-2xl font-semibold text-stone-950">
+              <h3 className="text-2xl font-semibold text-(--color-text)">
                 Hours Utilization Report
               </h3>
-              <p className="text-sm text-stone-600">{hours.monthLabel}</p>
+              <p className="text-sm text-(--color-text-muted)">{hours.monthLabel}</p>
             </div>
             <ReportExportActions type="hours-utilization" monthKey={hours.monthKey} />
           </div>
@@ -93,29 +93,29 @@ export default async function ReportsPage({
             {hours.totalsByDirector.slice(0, 8).map((item) => (
               <div
                 key={item.directorName}
-                className="rounded-[24px] border border-stone-200 bg-stone-50 px-4 py-4 text-sm"
+                className="rounded-[24px] border border-(--color-border) bg-(--color-surface-raised) px-4 py-4 text-sm"
               >
-                <p className="font-semibold text-stone-900">{item.directorName}</p>
-              <p className="mt-1 text-stone-600">{item.totalHours} hours</p>
+                <p className="font-semibold text-(--color-text)">{item.directorName}</p>
+              <p className="mt-1 text-(--color-text-muted)">{item.totalHours} hours</p>
             </div>
           ))}
           </div>
           <div className="grid gap-4 md:grid-cols-2">
             {hours.entryOriginSummary.map((item) => (
               <Card key={item.entryType}>
-                <p className="text-xs uppercase tracking-[0.22em] text-stone-500">
+                <p className="text-xs uppercase tracking-[0.22em] text-(--color-text-muted)">
                   {item.entryType}
                 </p>
-                <p className="mt-2 text-2xl font-semibold text-stone-950">
+                <p className="mt-2 text-2xl font-semibold text-(--color-text)">
                   {item.totalHours} hours
                 </p>
-                <p className="mt-1 text-sm text-stone-600">{item.rowCount} rows</p>
+                <p className="mt-1 text-sm text-(--color-text-muted)">{item.rowCount} rows</p>
               </Card>
             ))}
           </div>
-          <div className="overflow-x-auto rounded-[24px] border border-stone-200">
-            <table className="min-w-full divide-y divide-stone-200 text-left text-sm">
-              <thead className="bg-stone-50 text-stone-600">
+          <div className="overflow-x-auto rounded-[24px] border border-(--color-border)">
+            <table className="min-w-full divide-y divide-(--color-border) text-left text-sm">
+              <thead className="bg-(--color-surface-raised) text-(--color-text-muted)">
                 <tr>
                   <th className="px-4 py-3 font-medium">Director</th>
                   <th className="px-4 py-3 font-medium">Date</th>
@@ -126,7 +126,7 @@ export default async function ReportsPage({
                   <th className="px-4 py-3 font-medium">Last Edited Via</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-stone-100 bg-white text-stone-700">
+              <tbody className="divide-y divide-(--color-border) bg-(--color-surface) text-(--color-text-subtle)">
                 {hours.entryDetails.slice(0, 8).map((item) => (
                   <tr key={`${item.directorName}-${item.date}-${item.subProgramName}`}>
                     <td className="px-4 py-3">{item.directorName}</td>
@@ -152,8 +152,8 @@ export default async function ReportsPage({
         <Card className="space-y-4">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
             <div>
-              <h3 className="text-2xl font-semibold text-stone-950">Edit Request Report</h3>
-              <p className="text-sm text-stone-600">
+              <h3 className="text-2xl font-semibold text-(--color-text)">Edit Request Report</h3>
+              <p className="text-sm text-(--color-text-muted)">
                 Director and Associate Director requests only.
               </p>
             </div>
@@ -161,47 +161,47 @@ export default async function ReportsPage({
           </div>
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
             <Card>
-              <p className="text-xs uppercase tracking-[0.22em] text-stone-500">Total</p>
-              <p className="mt-2 text-2xl font-semibold text-stone-950">
+              <p className="text-xs uppercase tracking-[0.22em] text-(--color-text-muted)">Total</p>
+              <p className="mt-2 text-2xl font-semibold text-(--color-text)">
                 {editRequests.summary.totalRequests}
               </p>
             </Card>
             <Card>
-              <p className="text-xs uppercase tracking-[0.22em] text-stone-500">Approved</p>
-              <p className="mt-2 text-2xl font-semibold text-stone-950">
+              <p className="text-xs uppercase tracking-[0.22em] text-(--color-text-muted)">Approved</p>
+              <p className="mt-2 text-2xl font-semibold text-(--color-text)">
                 {editRequests.summary.approvedCount}
               </p>
-              <p className="mt-1 text-sm text-stone-600">
+              <p className="mt-1 text-sm text-(--color-text-muted)">
                 {editRequests.summary.approvalRate}% approval rate
               </p>
             </Card>
             <Card>
-              <p className="text-xs uppercase tracking-[0.22em] text-stone-500">Rejected</p>
-              <p className="mt-2 text-2xl font-semibold text-stone-950">
+              <p className="text-xs uppercase tracking-[0.22em] text-(--color-text-muted)">Rejected</p>
+              <p className="mt-2 text-2xl font-semibold text-(--color-text)">
                 {editRequests.summary.rejectedCount}
               </p>
-              <p className="mt-1 text-sm text-stone-600">
+              <p className="mt-1 text-sm text-(--color-text-muted)">
                 {editRequests.summary.rejectionRate}% rejection rate
               </p>
             </Card>
             <Card>
-              <p className="text-xs uppercase tracking-[0.22em] text-stone-500">Expired</p>
-              <p className="mt-2 text-2xl font-semibold text-stone-950">
+              <p className="text-xs uppercase tracking-[0.22em] text-(--color-text-muted)">Expired</p>
+              <p className="mt-2 text-2xl font-semibold text-(--color-text)">
                 {editRequests.summary.expiredCount}
               </p>
             </Card>
             <Card>
-              <p className="text-xs uppercase tracking-[0.22em] text-stone-500">
+              <p className="text-xs uppercase tracking-[0.22em] text-(--color-text-muted)">
                 Average response
               </p>
-              <p className="mt-2 text-2xl font-semibold text-stone-950">
+              <p className="mt-2 text-2xl font-semibold text-(--color-text)">
                 {editRequests.summary.averageResponseHours}h
               </p>
             </Card>
           </div>
-          <div className="overflow-x-auto rounded-[24px] border border-stone-200">
-            <table className="min-w-full divide-y divide-stone-200 text-left text-sm">
-              <thead className="bg-stone-50 text-stone-600">
+          <div className="overflow-x-auto rounded-[24px] border border-(--color-border)">
+            <table className="min-w-full divide-y divide-(--color-border) text-left text-sm">
+              <thead className="bg-(--color-surface-raised) text-(--color-text-muted)">
                 <tr>
                   <th className="px-4 py-3 font-medium">Requester</th>
                   <th className="px-4 py-3 font-medium">Requested at</th>
@@ -210,7 +210,7 @@ export default async function ReportsPage({
                   <th className="px-4 py-3 font-medium">Completion</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-stone-100 bg-white text-stone-700">
+              <tbody className="divide-y divide-(--color-border) bg-(--color-surface) text-(--color-text-subtle)">
                 {editRequests.detailedRows.slice(0, 12).map((item) => (
                   <tr key={`${item.requesterName}-${item.requestedAt}-${item.monthKey}`}>
                     <td className="px-4 py-3">{item.requesterName}</td>

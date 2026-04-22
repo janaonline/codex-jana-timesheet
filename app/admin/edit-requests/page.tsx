@@ -21,11 +21,11 @@ export default async function EditRequestsPage() {
       currentPath="/admin/edit-requests"
     >
       <Card className="space-y-5">
-        <p className="text-xs uppercase tracking-[0.28em] text-stone-500">
+        <p className="text-xs uppercase tracking-[0.28em] text-(--color-text-muted)">
           Pending edit requests
         </p>
-        <h2 className="text-4xl font-semibold text-stone-950">Unfreeze approvals</h2>
-        <p className="max-w-3xl text-sm leading-6 text-stone-600">
+        <h2 className="text-4xl font-semibold text-(--color-text)">Unfreeze approvals</h2>
+        <p className="max-w-3xl text-sm leading-6 text-(--color-text-muted)">
           Review requests from directors and associate directors who need a short edit
           window on a past month that has already been submitted or frozen.
         </p>

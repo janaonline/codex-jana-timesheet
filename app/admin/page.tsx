@@ -82,9 +82,9 @@ export default async function AdminPage({
       currentPath="/admin"
     >
       <Card className="space-y-5">
-        <p className="text-xs uppercase tracking-[0.28em] text-stone-500">Admin dashboard</p>
-        <h2 className="text-4xl font-semibold text-stone-950">Operational oversight</h2>
-        <p className="max-w-3xl text-sm leading-6 text-stone-600">
+        <p className="text-xs uppercase tracking-[0.28em] text-(--color-text-muted)">Admin dashboard</p>
+        <h2 className="text-4xl font-semibold text-(--color-text)">Operational oversight</h2>
+        <p className="max-w-3xl text-sm leading-6 text-(--color-text-muted)">
           Review real-time timesheet operations for {oversight.selectedMonthLabel} and
           manage internal settings without changing the approved core workflow rules.
         </p>
@@ -98,27 +98,27 @@ export default async function AdminPage({
 
       <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-4">
         <Card>
-          <p className="text-xs uppercase tracking-[0.24em] text-stone-500">On-time submissions</p>
-          <p className="mt-3 text-3xl font-semibold text-stone-950">
+          <p className="text-xs uppercase tracking-[0.24em] text-(--color-text-muted)">On-time submissions</p>
+          <p className="mt-3 text-3xl font-semibold text-(--color-text)">
             {oversight.summary.onTimeSubmissions}
           </p>
         </Card>
         <Card>
-          <p className="text-xs uppercase tracking-[0.24em] text-stone-500">Pending timesheets</p>
-          <p className="mt-3 text-3xl font-semibold text-stone-950">
+          <p className="text-xs uppercase tracking-[0.24em] text-(--color-text-muted)">Pending timesheets</p>
+          <p className="mt-3 text-3xl font-semibold text-(--color-text)">
             {oversight.summary.pendingTimesheets}
           </p>
         </Card>
         <Card>
-          <p className="text-xs uppercase tracking-[0.24em] text-stone-500">
+          <p className="text-xs uppercase tracking-[0.24em] text-(--color-text-muted)">
             {oversight.editRequests.selectedStatus === "ALL"
               ? "Edit requests"
               : `${oversight.editRequests.selectedStatus.toLowerCase()} edit requests`}
           </p>
-          <p className="mt-3 text-3xl font-semibold text-stone-950">
+          <p className="mt-3 text-3xl font-semibold text-(--color-text)">
             {oversight.editRequests.count}
           </p>
-          <p className="mt-2 text-sm text-stone-600">
+          <p className="mt-2 text-sm text-(--color-text-muted)">
             Pending {oversight.editRequests.countsByStatus.pending} | Approved{" "}
             {oversight.editRequests.countsByStatus.approved} | Rejected{" "}
             {oversight.editRequests.countsByStatus.rejected} | Expired{" "}
@@ -126,8 +126,8 @@ export default async function AdminPage({
           </p>
         </Card>
         <Card>
-          <p className="text-xs uppercase tracking-[0.24em] text-stone-500">Average response</p>
-          <p className="mt-3 text-3xl font-semibold text-stone-950">
+          <p className="text-xs uppercase tracking-[0.24em] text-(--color-text-muted)">Average response</p>
+          <p className="mt-3 text-3xl font-semibold text-(--color-text)">
             {oversight.summary.averageResponseHours}h
           </p>
         </Card>

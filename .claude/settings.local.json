@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//d/projects/codex-jana-timesheet/**)",
+      "Read(//d/projects/codex-jana-timesheet//**)"
+    ]
+  }
+}

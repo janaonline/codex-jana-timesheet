@@ -16,13 +16,13 @@ export function Button({
       className={cn(
         "inline-flex min-h-11 items-center justify-center rounded-full px-5 py-2.5 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-60",
         variant === "primary" &&
-          "bg-amber-300 text-stone-950 hover:bg-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-300 focus:ring-offset-2",
+          "bg-(--color-primary) text-(--color-text) hover:bg-(--color-primary-hover) focus:outline-none focus:ring-2 focus:ring-(--color-primary) focus:ring-offset-2 focus:ring-offset-(--color-surface)",
         variant === "secondary" &&
-          "border border-stone-300 bg-white text-stone-900 hover:border-stone-400 hover:bg-stone-100 focus:outline-none focus:ring-2 focus:ring-stone-200 focus:ring-offset-2",
+          "border border-(--color-border-strong) bg-(--color-surface) text-(--color-text-subtle) hover:border-(--color-border-strong) hover:bg-(--color-surface-raised) focus:outline-none focus:ring-2 focus:ring-(--color-border) focus:ring-offset-2 focus:ring-offset-(--color-surface)",
         variant === "ghost" &&
-          "text-stone-700 hover:bg-stone-100 focus:outline-none focus:ring-2 focus:ring-stone-200 focus:ring-offset-2",
+          "text-(--color-text-subtle) hover:bg-(--color-surface-raised) focus:outline-none focus:ring-2 focus:ring-(--color-border) focus:ring-offset-2 focus:ring-offset-(--color-surface)",
         variant === "danger" &&
-          "bg-stone-950 text-white hover:bg-black focus:outline-none focus:ring-2 focus:ring-stone-300 focus:ring-offset-2",
+          "bg-(--color-text) text-(--color-surface) hover:opacity-85 focus:outline-none focus:ring-2 focus:ring-(--color-border-strong) focus:ring-offset-2 focus:ring-offset-(--color-surface)",
         className,
       )}
       {...props}

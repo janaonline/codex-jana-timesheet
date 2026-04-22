@@ -16,6 +16,32 @@ This README is based on the current source code, not earlier project assumptions
 - Exports: PDFKit and CSV generation
 - Tests: Vitest
 
+## Dark Mode
+
+The application has full dark mode support across all user-facing routes.
+
+**Route coverage:** `/login`, `/auth/set-password`, `/dashboard`, `/timesheets/[id]`, `/timesheets/[id]/confirmation`, `/admin`, `/admin/edit-requests`, `/admin/reports`. The `/forbidden` and error pages are intentionally dark in both modes by design.
+
+**Persistence:** The active theme is stored in `localStorage` under the key `"theme"` (`"light"` or `"dark"`). On first visit, falls back to the OS preference via `prefers-color-scheme`. Theme is restored before the first paint via a synchronous inline script in `<head>` — no flash on reload.
+
+**Architecture:**
+- `app/globals.css` defines all semantic CSS custom properties: `--color-bg`, `--color-surface`, `--color-surface-raised`, `--color-border`, `--color-border-strong`, `--color-text`, `--color-text-subtle`, `--color-text-muted`, `--color-text-placeholder`, `--color-primary`, `--color-primary-hover`, `--color-primary-ring`, `--color-error-bg`, `--color-error-border`, `--color-error-text`. The `.dark` class overrides all tokens.
+- `@custom-variant dark (&:where(.dark, .dark *))` enables the standard `dark:` prefix throughout.
+- `components/common/theme-provider.tsx` manages React state; `components/common/theme-toggle.tsx` provides the toggle button (sun/moon icons, no icon library dependency).
+- The toggle appears in the sidebar header on authenticated pages and fixed top-right on the login and set-password pages.
+
+**Guidance for new UI code:**
+- Use `text-(--color-text)`, `bg-(--color-surface)`, `border-(--color-border)`, etc. for structural elements. Do not hardcode `text-stone-*`, `bg-white`, `bg-stone-*`, or `border-stone-*`.
+- For semantic status colors (e.g. badge, toast, calendar cells) that require multiple hues, use explicit `dark:` prefix pairs (e.g. `bg-emerald-50 dark:bg-emerald-950`).
+- Never use `bg-stone-100` as a surface without pairing it with a `dark:bg-stone-800` override.
+
+**Manual verification steps:**
+1. Toggle dark/light on `/login` — card, form fields, and button adapt.
+2. Sign in → sidebar, nav, user card, and page content adapt.
+3. Visit `/timesheets/[id]` → calendar cells, forms, sticky summary, and view tabs adapt.
+4. Hard refresh a dark-mode route → no flash, theme persists.
+5. Open a private window → OS preference is respected.
+
 ## What The Application Does
 
 - Gives timesheet owners a dashboard for the current month, previous month, and recent history.

@@ -77,4 +77,31 @@ instrumentation.ts	Scheduler entry point (Next.js hook)
 
 ---
 
-Paste this into your CLAUDE.md. The three requested sections (tech stack, pages, start command) are all included, plus architecture context that will help in future Claude sessions.
+## Dark Mode Implementation Rules
+
+The app has full dark mode. All new UI code must follow these rules.
+
+**Use semantic tokens — never hardcode light-theme classes:**
+
+| Intended use | Correct class | Forbidden |
+|---|---|---|
+| Page / card background | `bg-(--color-surface)` | `bg-white` |
+| Raised surface | `bg-(--color-surface-raised)` | `bg-stone-50` |
+| Primary text | `text-(--color-text)` | `text-stone-950`, `text-stone-900` |
+| Subtle text | `text-(--color-text-subtle)` | `text-stone-700` |
+| Muted / label text | `text-(--color-text-muted)` | `text-stone-600`, `text-stone-500` |
+| Default border | `border-(--color-border)` | `border-stone-200` |
+| Strong border | `border-(--color-border-strong)` | `border-stone-300` |
+| Divider | `divide-(--color-border)` | `divide-stone-200`, `divide-stone-100` |
+| Error states | `bg-(--color-error-bg) border-(--color-error-border) text-(--color-error-text)` | `bg-rose-50 border-rose-200 text-rose-700` |
+
+**Use `dark:` pairs only for semantic status colors** (multiple hues per state — badge, toast, calendar cells):
+- `bg-emerald-50 dark:bg-emerald-950`, `border-emerald-200 dark:border-emerald-900`, etc.
+- Never use `dark:` for structural layout — that's what tokens are for.
+
+**Key files:**
+- `app/globals.css` — all token definitions under `:root` and `.dark`
+- `components/common/theme-provider.tsx` — `useTheme()` hook
+- `components/common/theme-toggle.tsx` — sun/moon toggle button
+
+**Rule:** Any future change that modifies theme-related infrastructure (new tokens, new toggle placement, persistence mechanism change) must update both `README.md` (user-facing dark mode section) and `CLAUDE.md` (this rules section) in the same pass.

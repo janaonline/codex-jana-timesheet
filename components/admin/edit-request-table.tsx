@@ -135,22 +135,22 @@ export function EditRequestTable({
         {requests.map((request) => (
           <div
             key={request.id}
-            className="rounded-[24px] border border-stone-200 bg-white p-5 shadow-sm"
+            className="rounded-[24px] border border-(--color-border) bg-(--color-surface) p-5 shadow-sm"
           >
             <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
               <div className="space-y-2">
                 <div className="flex items-center gap-3">
-                  <h3 className="text-lg font-semibold text-stone-950">
+                  <h3 className="text-lg font-semibold text-(--color-text)">
                     {request.requesterName}
                   </h3>
                   <Badge tone={request.status}>{request.status}</Badge>
                 </div>
-                <p className="text-sm text-stone-600">{request.requesterEmail}</p>
-                <p className="text-sm text-stone-600">{request.monthLabel}</p>
-                <p className="rounded-2xl bg-stone-50 p-4 text-sm text-stone-700">
+                <p className="text-sm text-(--color-text-muted)">{request.requesterEmail}</p>
+                <p className="text-sm text-(--color-text-muted)">{request.monthLabel}</p>
+                <p className="rounded-2xl bg-(--color-surface-raised) p-4 text-sm text-(--color-text-subtle)">
                   {request.reason}
                 </p>
-                <p className="text-xs uppercase tracking-[0.22em] text-stone-500">
+                <p className="text-xs uppercase tracking-[0.22em] text-(--color-text-muted)">
                   Requested {formatDisplayDate(request.requestedAt)}
                 </p>
               </div>

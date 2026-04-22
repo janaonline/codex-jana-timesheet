@@ -31,7 +31,7 @@ export function RequestEditModal({
   return (
     <Modal open={open} title="Request edit / unfreeze" onClose={onClose}>
       <div className="space-y-4">
-        <p className="text-sm text-stone-600">
+        <p className="text-sm text-(--color-text-muted)">
           This workflow requests a short admin-approved edit window for the selected
           past-month timesheet. Please explain why the sheet needs to be unlocked.
         </p>
@@ -43,7 +43,7 @@ export function RequestEditModal({
           placeholder="Reason for reopening the timesheet"
         />
         <div className="flex items-center justify-between">
-          <p className="text-xs text-stone-500">{reason.length}/500 characters</p>
+          <p className="text-xs text-(--color-text-muted)">{reason.length}/500 characters</p>
           <div className="grid gap-3 sm:flex">
             <Button className="w-full sm:w-auto" variant="secondary" onClick={onClose}>
               Cancel
