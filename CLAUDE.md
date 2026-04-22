@@ -94,6 +94,7 @@ The app has full dark mode. All new UI code must follow these rules.
 | Strong border | `border-(--color-border-strong)` | `border-stone-300` |
 | Divider | `divide-(--color-border)` | `divide-stone-200`, `divide-stone-100` |
 | Error states | `bg-(--color-error-bg) border-(--color-error-border) text-(--color-error-text)` | `bg-rose-50 border-rose-200 text-rose-700` |
+| Foreground on yellow fill | `text-stone-950` | `text-(--color-text)` or `text-(--color-primary-text)` inside yellow fills |
 
 **Use `dark:` pairs only for semantic status colors** (multiple hues per state — badge, toast, calendar cells):
 - `bg-emerald-50 dark:bg-emerald-950`, `border-emerald-200 dark:border-emerald-900`, etc.

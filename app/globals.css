@@ -24,6 +24,7 @@
   --color-primary:      #fcd34d; /* amber-300 */
   --color-primary-hover:#fbbf24; /* amber-400 */
   --color-primary-ring: #fef3c7; /* amber-100 */
+  --color-primary-text: #0c0a09; /* stone-950 — always dark; amber fill is theme-invariant */
 
   /* Error / destructive */
   --color-error-bg:     #fff1f2; /* rose-50  */
@@ -62,6 +63,7 @@
   --color-primary:      #fcd34d;
   --color-primary-hover:#fbbf24;
   --color-primary-ring: rgba(252, 211, 77, 0.15);
+  --color-primary-text: #0c0a09;
 
   /* Error / destructive */
   --color-error-bg:     #1c0607;

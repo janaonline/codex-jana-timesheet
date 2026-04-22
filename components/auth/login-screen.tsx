@@ -291,7 +291,7 @@ export function LoginScreen({
                 type="button"
                 className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
                   view === item.key
-                    ? "bg-(--color-primary) text-(--color-text)"
+                    ? "bg-(--color-primary) text-stone-950"
                     : "bg-(--color-surface-raised) text-(--color-text-muted) hover:bg-(--color-border)"
                 }`}
                 onClick={() => {

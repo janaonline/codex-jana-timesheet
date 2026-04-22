@@ -25,13 +25,14 @@ The application has full dark mode support across all user-facing routes.
 **Persistence:** The active theme is stored in `localStorage` under the key `"theme"` (`"light"` or `"dark"`). On first visit, falls back to the OS preference via `prefers-color-scheme`. Theme is restored before the first paint via a synchronous inline script in `<head>` — no flash on reload.
 
 **Architecture:**
-- `app/globals.css` defines all semantic CSS custom properties: `--color-bg`, `--color-surface`, `--color-surface-raised`, `--color-border`, `--color-border-strong`, `--color-text`, `--color-text-subtle`, `--color-text-muted`, `--color-text-placeholder`, `--color-primary`, `--color-primary-hover`, `--color-primary-ring`, `--color-error-bg`, `--color-error-border`, `--color-error-text`. The `.dark` class overrides all tokens.
+- `app/globals.css` defines all semantic CSS custom properties: `--color-bg`, `--color-surface`, `--color-surface-raised`, `--color-border`, `--color-border-strong`, `--color-text`, `--color-text-subtle`, `--color-text-muted`, `--color-text-placeholder`, `--color-primary`, `--color-primary-hover`, `--color-primary-ring`, `--color-primary-text`, `--color-error-bg`, `--color-error-border`, `--color-error-text`. The `.dark` class overrides all tokens. `--color-primary-text` is stone-950 in both themes — the amber fill does not change between modes, so the readable foreground must not change either.
 - `@custom-variant dark (&:where(.dark, .dark *))` enables the standard `dark:` prefix throughout.
 - `components/common/theme-provider.tsx` manages React state; `components/common/theme-toggle.tsx` provides the toggle button (sun/moon icons, no icon library dependency).
 - The toggle appears in the sidebar header on authenticated pages and fixed top-right on the login and set-password pages.
 
 **Guidance for new UI code:**
 - Use `text-(--color-text)`, `bg-(--color-surface)`, `border-(--color-border)`, etc. for structural elements. Do not hardcode `text-stone-*`, `bg-white`, `bg-stone-*`, or `border-stone-*`.
+- Inside any yellow/amber-filled element (`bg-(--color-primary)` or `bg-amber-300`), use `text-stone-950` — not `text-(--color-text)`, which resolves to near-white in dark mode and becomes unreadable on the amber fill. Note: `text-(--color-primary-text)` is defined as a CSS custom property but Tailwind v4 does not compile arbitrary-var classes for runtime tokens, so use the named utility instead.
 - For semantic status colors (e.g. badge, toast, calendar cells) that require multiple hues, use explicit `dark:` prefix pairs (e.g. `bg-emerald-50 dark:bg-emerald-950`).
 - Never use `bg-stone-100` as a surface without pairing it with a `dark:bg-stone-800` override.
 

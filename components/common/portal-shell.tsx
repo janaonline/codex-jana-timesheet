@@ -92,7 +92,7 @@ export function PortalShell({
                 className={cn(
                   "shrink-0 rounded-full border px-4 py-2.5 text-sm font-medium transition lg:rounded-2xl lg:px-4 lg:py-3",
                   currentPath === item.href
-                    ? "border-amber-300 bg-amber-300 text-(--color-text)"
+                    ? "border-amber-300 bg-amber-300 text-stone-950"
                     : "border-(--color-border) bg-(--color-surface) text-(--color-text-subtle) hover:border-(--color-border-strong) hover:bg-(--color-surface-raised)",
                 )}
               >

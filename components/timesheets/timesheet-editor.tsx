@@ -1121,7 +1121,7 @@ export function TimesheetEditor({
                 loaderMessage="Loading timesheet..."
                 className={`shrink-0 rounded-full border px-4 py-2 text-sm font-semibold transition ${
                   item.id === timesheet.id
-                    ? "border-amber-300 bg-amber-300 text-(--color-text)"
+                    ? "border-amber-300 bg-amber-300 text-stone-950"
                     : "border-(--color-border-strong) bg-(--color-surface) text-(--color-text-subtle) hover:bg-(--color-surface-raised)"
                 }`}
               >
@@ -1242,7 +1242,7 @@ export function TimesheetEditor({
               type="button"
               className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
                 activeView === tab.key
-                  ? "bg-amber-300 text-(--color-text)"
+                  ? "bg-amber-300 text-stone-950"
                   : "bg-stone-100 text-stone-600 hover:bg-stone-200 dark:bg-stone-800 dark:text-stone-300 dark:hover:bg-stone-700"
               }`}
               onClick={() => setActiveView(tab.key)}
