@@ -1200,7 +1200,7 @@ export function TimesheetEditor({
                   {canSelectState ? (
                     <Select
                       aria-label={`${formatDisplayDate(day.workDate)} day state`}
-                      className="mt-2 border-0 bg-transparent px-0 py-0 pr-8 text-sm font-semibold text-(--color-text) shadow-none focus:border-0 focus:ring-0"
+                      className="mt-2 border-0 bg-transparent px-0 py-0 pr-8 text-sm font-semibold text-(--color-text) shadow-none focus:border-0 focus:ring-0 dark:[color-scheme:dark]"
                       value={toCalendarSelection(day)}
                       disabled={calendarSavingDate === day.workDate}
                       onChange={(event) =>
