@@ -27,12 +27,14 @@ The application has full dark mode support across all user-facing routes.
 **Architecture:**
 - `app/globals.css` defines all semantic CSS custom properties: `--color-bg`, `--color-surface`, `--color-surface-raised`, `--color-border`, `--color-border-strong`, `--color-text`, `--color-text-subtle`, `--color-text-muted`, `--color-text-placeholder`, `--color-primary`, `--color-primary-hover`, `--color-primary-ring`, `--color-primary-text`, `--color-error-bg`, `--color-error-border`, `--color-error-text`. The `.dark` class overrides all tokens. `--color-primary-text` is stone-950 in both themes — the amber fill does not change between modes, so the readable foreground must not change either.
 - `@custom-variant dark (&:where(.dark, .dark *))` enables the standard `dark:` prefix throughout.
+- The `a { color: inherit; text-decoration: none; }` base reset lives inside `@layer base` so that Tailwind utility classes (which are in `@layer utilities`) can override link colors. Unlayered CSS always beats layered CSS regardless of specificity — do not move this rule outside a layer.
 - `components/common/theme-provider.tsx` manages React state; `components/common/theme-toggle.tsx` provides the toggle button (sun/moon icons, no icon library dependency).
 - The toggle appears in the sidebar header on authenticated pages and fixed top-right on the login and set-password pages.
 
 **Guidance for new UI code:**
 - Use `text-(--color-text)`, `bg-(--color-surface)`, `border-(--color-border)`, etc. for structural elements. Do not hardcode `text-stone-*`, `bg-white`, `bg-stone-*`, or `border-stone-*`.
-- Inside any yellow/amber-filled element (`bg-(--color-primary)` or `bg-amber-300`), use `text-stone-950` — not `text-(--color-text)`, which resolves to near-white in dark mode and becomes unreadable on the amber fill. Note: `text-(--color-primary-text)` is defined as a CSS custom property but Tailwind v4 does not compile arbitrary-var classes for runtime tokens, so use the named utility instead.
+- Inside any yellow/amber-filled element (`bg-(--color-primary)` or `bg-amber-300`), use `text-stone-950` — not `text-(--color-text)`, which resolves to near-white in dark mode. Do not use `text-(--color-primary-text)`: Tailwind v4 does not compile arbitrary CSS-variable classes for runtime tokens, so they produce no output rule.
+- For native form controls (`<input type="month">`, date pickers, etc.) on dark surfaces, add `dark:[color-scheme:dark]` so the browser renders built-in widgets (calendar icon, scrollbars) in light colours on the dark background.
 - For semantic status colors (e.g. badge, toast, calendar cells) that require multiple hues, use explicit `dark:` prefix pairs (e.g. `bg-emerald-50 dark:bg-emerald-950`).
 - Never use `bg-stone-100` as a surface without pairing it with a `dark:bg-stone-800` override.
 
