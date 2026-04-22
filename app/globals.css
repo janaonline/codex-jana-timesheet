@@ -5,6 +5,8 @@
 
 /* ── Light theme (default) ────────────────────────────────────────────── */
 :root {
+  color-scheme: light;
+
   /* Page & surface */
   --color-bg:             #ffffff;
   --color-surface:        #ffffff;
@@ -44,6 +46,8 @@
 
 /* ── Dark theme ───────────────────────────────────────────────────────── */
 .dark {
+  color-scheme: dark;
+
   /* Page & surface — stone scale from the dark end */
   --color-bg:             #0c0a09; /* stone-950 */
   --color-surface:        #1c1917; /* stone-900 */
