@@ -128,17 +128,17 @@ export function SetPasswordScreen({
   }
 
   return (
-    <main className="min-h-screen bg-white px-4 py-8 text-stone-950 sm:px-6 lg:px-8">
+    <main className="min-h-screen bg-(--color-bg) px-4 py-8 text-(--color-text) sm:px-6 lg:px-8">
       <div className="mx-auto flex min-h-[calc(100vh-64px)] max-w-3xl items-center justify-center">
-        <Card className="w-full max-w-xl rounded-[32px] border-stone-200 bg-white p-6 sm:p-8">
+        <Card className="w-full max-w-xl rounded-[32px] border-(--color-border) bg-(--color-surface) p-6 sm:p-8">
           <div className="space-y-3">
-            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-stone-500">
+            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-(--color-text-muted)">
               Secure password setup
             </p>
-            <h1 className="text-3xl font-semibold tracking-tight text-stone-950">
+            <h1 className="text-3xl font-semibold tracking-tight text-(--color-text)">
               Create your password
             </h1>
-            <p className="text-sm leading-6 text-stone-600">
+            <p className="text-sm leading-6 text-(--color-text-muted)">
               Use a strong password you can save to your browser password manager for
               faster sign-ins next time.
             </p>
@@ -146,7 +146,7 @@ export function SetPasswordScreen({
 
           <form ref={formRef} className="mt-8 space-y-4" onSubmit={handleSubmit}>
             <input type="email" name="username" value={email} readOnly hidden />
-            <label className="block text-sm font-medium text-stone-700">
+            <label className="block text-sm font-medium text-(--color-text-subtle)">
               Work email
               <Input
                 className="mt-2"
@@ -156,7 +156,7 @@ export function SetPasswordScreen({
                 autoComplete="username"
               />
             </label>
-            <label className="block text-sm font-medium text-stone-700">
+            <label className="block text-sm font-medium text-(--color-text-subtle)">
               New password
               <Input
                 className="mt-2"
@@ -169,7 +169,7 @@ export function SetPasswordScreen({
                 required
               />
             </label>
-            <label className="block text-sm font-medium text-stone-700">
+            <label className="block text-sm font-medium text-(--color-text-subtle)">
               Confirm password
               <Input
                 className="mt-2"
@@ -181,17 +181,17 @@ export function SetPasswordScreen({
                 required
               />
             </label>
-            <div className="rounded-2xl border border-stone-200 bg-stone-50 px-4 py-4 text-sm leading-6 text-stone-600">
+            <div className="rounded-2xl border border-(--color-border) bg-(--color-surface-raised) px-4 py-4 text-sm leading-6 text-(--color-text-muted)">
               Passwords must be at least 12 characters and include uppercase,
               lowercase, number, and special character combinations.
             </div>
             {error ? (
-              <p className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+              <p className="rounded-2xl border border-(--color-error-border) bg-(--color-error-bg) px-4 py-3 text-sm text-(--color-error-text)">
                 {error}
               </p>
             ) : null}
             {success ? (
-              <p className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+              <p className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950 dark:text-emerald-300">
                 Password saved. Redirecting you back into the portal.
               </p>
             ) : null}

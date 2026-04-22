@@ -1001,8 +1001,8 @@ export function TimesheetEditor({
     <div className="space-y-6 pb-8">
       {autosave.status === "saving" ? (
         <div className="pointer-events-none fixed right-4 top-4 z-50">
-          <div className="inline-flex items-center gap-3 rounded-full border border-stone-200 bg-white/95 px-4 py-2 text-sm font-medium text-stone-700 shadow-[0_18px_40px_-28px_rgba(17,17,17,0.35)] backdrop-blur">
-            <span className="h-4 w-4 animate-spin rounded-full border-2 border-stone-300 border-t-stone-700" />
+          <div className="inline-flex items-center gap-3 rounded-full border border-(--color-border) bg-(--color-surface)/95 px-4 py-2 text-sm font-medium text-(--color-text-subtle) shadow-[0_18px_40px_-28px_rgba(17,17,17,0.35)] backdrop-blur">
+            <span className="h-4 w-4 animate-spin rounded-full border-2 border-(--color-border-strong) border-t-(--color-text-subtle)" />
             <span>Saving latest changes...</span>
           </div>
         </div>
@@ -1020,11 +1020,11 @@ export function TimesheetEditor({
         onClose={() => setOverwriteState(null)}
       >
         <div className="space-y-4">
-          <p className="text-sm text-stone-600">
+          <p className="text-sm text-(--color-text-muted)">
             The selected allocation would replace existing rows for the same sub-program
             on matching dates only.
           </p>
-          <div className="rounded-[24px] border border-stone-200 bg-stone-50 px-4 py-4 text-sm text-stone-700">
+          <div className="rounded-[24px] border border-(--color-border) bg-(--color-surface-raised) px-4 py-4 text-sm text-(--color-text-subtle)">
             {(overwriteState?.details ?? []).map((detail) => (
               <p key={detail}>{detail}</p>
             ))}
@@ -1060,11 +1060,11 @@ export function TimesheetEditor({
         onClose={() => setHolidayConfirmationState(null)}
       >
         <div className="space-y-4">
-          <p className="text-sm text-stone-600">
+          <p className="text-sm text-(--color-text-muted)">
             Applying Holiday will clear the recorded entries for this date only before the
             zero-capacity day is saved.
           </p>
-          <div className="rounded-[24px] border border-stone-200 bg-stone-50 px-4 py-4 text-sm text-stone-700">
+          <div className="rounded-[24px] border border-(--color-border) bg-(--color-surface-raised) px-4 py-4 text-sm text-(--color-text-subtle)">
             {(holidayConfirmationState?.details ?? []).map((detail) => (
               <p key={detail}>{detail}</p>
             ))}
@@ -1098,16 +1098,16 @@ export function TimesheetEditor({
       <Card className="space-y-5">
         <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.26em] text-stone-500">
+            <p className="text-xs font-semibold uppercase tracking-[0.26em] text-(--color-text-muted)">
               Monthly timesheet
             </p>
-            <h2 className="mt-2 text-3xl font-semibold text-stone-950 sm:text-4xl">
+            <h2 className="mt-2 text-3xl font-semibold text-(--color-text) sm:text-4xl">
               {timesheet.monthLabel}
             </h2>
             <div className="mt-4 flex flex-wrap items-center gap-3">
               <Badge tone={timesheet.status}>{timesheet.status.replaceAll("_", " ")}</Badge>
               {timesheet.editWindowClosesAt ? (
-                <span className="text-sm text-stone-600">
+                <span className="text-sm text-(--color-text-muted)">
                   Edit window closes on {formatDisplayDate(timesheet.editWindowClosesAt)}
                 </span>
               ) : null}
@@ -1122,7 +1122,7 @@ export function TimesheetEditor({
                 className={`shrink-0 rounded-full border px-4 py-2 text-sm font-semibold transition ${
                   item.id === timesheet.id
                     ? "border-amber-300 bg-amber-300 text-stone-950"
-                    : "border-stone-300 bg-white text-stone-700 hover:bg-stone-50"
+                    : "border-(--color-border-strong) bg-(--color-surface) text-(--color-text-subtle) hover:bg-(--color-surface-raised)"
                 }`}
               >
                 {item.monthLabel}
@@ -1132,13 +1132,13 @@ export function TimesheetEditor({
         </div>
 
         <div className="grid gap-4 lg:grid-cols-[1fr_1fr]">
-          <div className="rounded-[24px] border border-dashed border-stone-300 bg-stone-50 px-4 py-4 text-sm text-stone-600">
+          <div className="rounded-[24px] border border-dashed border-(--color-border-strong) bg-(--color-surface-raised) px-4 py-4 text-sm text-(--color-text-muted)">
             Assigned hours now come from per-date capacity. Weekends, system holidays,
             full-day leave, half-day leave, and Holidays all affect the total
             automatically.
           </div>
-          <div className="rounded-[24px] border border-stone-200 bg-white px-4 py-4 text-sm text-stone-700">
-            <p className="font-semibold text-stone-900">Date-state summary</p>
+          <div className="rounded-[24px] border border-(--color-border) bg-(--color-surface) px-4 py-4 text-sm text-(--color-text-subtle)">
+            <p className="font-semibold text-(--color-text)">Date-state summary</p>
             <p className="mt-2">Full-day leave: {dateStateSummary.fullDayLeaves}</p>
             <p>Half-day leave: {dateStateSummary.halfDayLeaves}</p>
             <p>Holidays: {dateStateSummary.manualHolidays}</p>
@@ -1149,21 +1149,21 @@ export function TimesheetEditor({
       <Card className="space-y-4">
         <button
           type="button"
-          className="flex w-full items-center justify-between gap-4 rounded-[24px] border border-stone-200 bg-stone-50 px-4 py-4 text-left transition hover:bg-stone-100 focus:outline-none focus:ring-2 focus:ring-amber-200 focus:ring-offset-2"
+          className="flex w-full items-center justify-between gap-4 rounded-[24px] border border-(--color-border) bg-(--color-surface-raised) px-4 py-4 text-left transition dark:hover:bg-stone-700 focus:outline-none focus:ring-2 focus:ring-(--color-primary-ring) focus:ring-offset-2"
           aria-controls="timesheet-calendar-panel"
           aria-expanded={isCalendarExpanded}
           onClick={() => setIsCalendarExpanded((current) => !current)}
         >
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-stone-500">
+            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-(--color-text-muted)">
               Calendar view
             </p>
-            <p className="mt-2 text-sm text-stone-600">
+            <p className="mt-2 text-sm text-(--color-text-muted)">
               {timesheet.monthLabel} - {selectableCalendarDayCount} active dates -{" "}
               {formatHoursValue(timesheet.assignedHours)} assigned hrs
             </p>
           </div>
-          <span className="shrink-0 text-sm font-semibold text-stone-700">
+          <span className="shrink-0 text-sm font-semibold text-(--color-text-subtle)">
             {isCalendarExpanded ? "Collapse" : "Expand"}
           </span>
         </button>
@@ -1184,23 +1184,23 @@ export function TimesheetEditor({
                   key={day.workDate}
                   className={`rounded-[24px] border px-4 py-4 text-sm ${
                     isFullyUtilized
-                      ? "border-emerald-200 bg-emerald-50"
+                      ? "border-emerald-200 bg-emerald-50 dark:border-emerald-900 dark:bg-emerald-950"
                       : day.isSystemHoliday
-                      ? "border-rose-200 bg-rose-50"
+                      ? "border-rose-200 bg-rose-50 dark:border-rose-900 dark:bg-rose-950"
                       : day.isWeekend
-                        ? "border-stone-200 bg-stone-100"
+                        ? "border-(--color-border) bg-(--color-surface-raised)"
                         : day.capacityMinutes === 0
-                          ? "border-amber-200 bg-amber-50"
-                          : "border-stone-200 bg-white"
+                          ? "border-amber-200 bg-amber-50 dark:border-amber-900 dark:bg-amber-950"
+                          : "border-(--color-border) bg-(--color-surface)"
                   }`}
                 >
-                  <p className="text-xs uppercase tracking-[0.2em] text-stone-500">
+                  <p className="text-xs uppercase tracking-[0.2em] text-(--color-text-muted)">
                     {formatDisplayDate(day.workDate)}
                   </p>
                   {canSelectState ? (
                     <Select
                       aria-label={`${formatDisplayDate(day.workDate)} day state`}
-                      className="mt-2 border-0 bg-transparent px-0 py-0 pr-8 text-sm font-semibold text-stone-900 shadow-none focus:border-0 focus:ring-0"
+                      className="mt-2 border-0 bg-transparent px-0 py-0 pr-8 text-sm font-semibold text-(--color-text) shadow-none focus:border-0 focus:ring-0 dark:[color-scheme:dark]"
                       value={toCalendarSelection(day)}
                       disabled={calendarSavingDate === day.workDate}
                       onChange={(event) =>
@@ -1216,9 +1216,9 @@ export function TimesheetEditor({
                       <option value="HOLIDAY">Holiday</option>
                     </Select>
                   ) : (
-                    <p className="mt-2 font-semibold text-stone-900">{stateLabel}</p>
+                    <p className="mt-2 font-semibold text-(--color-text)">{stateLabel}</p>
                   )}
-                  <p className="mt-1 text-stone-600">
+                  <p className="mt-1 text-(--color-text-muted)">
                     {day.capacityMinutes === 0
                       ? "-"
                       : `Utilization: ${formatDayUtilization(
@@ -1243,7 +1243,7 @@ export function TimesheetEditor({
               className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
                 activeView === tab.key
                   ? "bg-amber-300 text-stone-950"
-                  : "bg-stone-100 text-stone-600 hover:bg-stone-200"
+                  : "bg-stone-100 text-stone-600 hover:bg-stone-200 dark:bg-stone-800 dark:text-stone-300 dark:hover:bg-stone-700"
               }`}
               onClick={() => setActiveView(tab.key)}
             >
@@ -1253,17 +1253,17 @@ export function TimesheetEditor({
       </div>
 
       <div className="sticky top-3 z-20">
-        <div className="rounded-[24px] border border-stone-200 bg-white/95 px-4 py-3 shadow-[0_18px_40px_-28px_rgba(17,17,17,0.35)] backdrop-blur">
+        <div className="rounded-[24px] border border-(--color-border) bg-(--color-surface)/95 px-4 py-3 shadow-[0_18px_40px_-28px_rgba(17,17,17,0.35)] backdrop-blur">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="min-w-0 flex-1">
-              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-stone-500">
+              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-(--color-text-muted)">
                 Progress
               </p>
               <div className="mt-2">
                 <ProgressBar value={completionPercentage} />
               </div>
             </div>
-            <p className="shrink-0 text-sm font-semibold text-stone-900">
+            <p className="shrink-0 text-sm font-semibold text-(--color-text)">
               {formatHoursValue(totalHours)} / {formatHoursValue(timesheet.assignedHours)} hrs
             </p>
           </div>
@@ -1274,8 +1274,8 @@ export function TimesheetEditor({
         <Card className="space-y-4">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <h3 className="text-xl font-semibold text-stone-950">Week allocation</h3>
-              <p className="mt-1 text-sm text-stone-600">
+              <h3 className="text-xl font-semibold text-(--color-text)">Week allocation</h3>
+              <p className="mt-1 text-sm text-(--color-text-muted)">
                 Allocate one sub-program across the selected Mon-Fri week segment using
                 10-minute resolution.
               </p>
@@ -1290,10 +1290,10 @@ export function TimesheetEditor({
             {weekForms.map((weekForm, index) => (
               <div
                 key={weekForm.id}
-                className="rounded-[24px] border border-stone-200 bg-stone-50 p-4"
+                className="rounded-[24px] border border-(--color-border) bg-(--color-surface-raised) p-4"
               >
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                  <p className="text-xs uppercase tracking-[0.22em] text-stone-500">
+                  <p className="text-xs uppercase tracking-[0.22em] text-(--color-text-muted)">
                     Allocation {index + 1}
                   </p>
                   {!readOnly && weekForms.length > 1 ? (
@@ -1303,7 +1303,7 @@ export function TimesheetEditor({
                   ) : null}
                 </div>
                 <div className="mt-4 grid gap-4 md:grid-cols-2">
-                  <label className="text-sm font-medium text-stone-700">
+                  <label className="text-sm font-medium text-(--color-text-subtle)">
                     Week
                     <Select
                       className="mt-2"
@@ -1320,7 +1320,7 @@ export function TimesheetEditor({
                       ))}
                     </Select>
                   </label>
-                  <label className="text-sm font-medium text-stone-700">
+                  <label className="text-sm font-medium text-(--color-text-subtle)">
                     Sub-program
                     <Select
                       className="mt-2"
@@ -1336,7 +1336,7 @@ export function TimesheetEditor({
                       ))}
                     </Select>
                   </label>
-                  <label className="text-sm font-medium text-stone-700">
+                  <label className="text-sm font-medium text-(--color-text-subtle)">
                     Total hours
                     <Input
                       className="mt-2"
@@ -1349,7 +1349,7 @@ export function TimesheetEditor({
                       }
                     />
                   </label>
-                  <label className="text-sm font-medium text-stone-700 md:col-span-2">
+                  <label className="text-sm font-medium text-(--color-text-subtle) md:col-span-2">
                     Description
                     <Textarea
                       className="mt-2"
@@ -1380,8 +1380,8 @@ export function TimesheetEditor({
         <Card className="space-y-4">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <h3 className="text-xl font-semibold text-stone-950">Month allocation</h3>
-              <p className="mt-1 text-sm text-stone-600">
+              <h3 className="text-xl font-semibold text-(--color-text)">Month allocation</h3>
+              <p className="mt-1 text-sm text-(--color-text-muted)">
                 Allocate one sub-program across all valid dates in the month. The result is
                 written back as day-level rows.
               </p>
@@ -1396,10 +1396,10 @@ export function TimesheetEditor({
             {monthForms.map((monthForm, index) => (
               <div
                 key={monthForm.id}
-                className="rounded-[24px] border border-stone-200 bg-stone-50 p-4"
+                className="rounded-[24px] border border-(--color-border) bg-(--color-surface-raised) p-4"
               >
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                  <p className="text-xs uppercase tracking-[0.22em] text-stone-500">
+                  <p className="text-xs uppercase tracking-[0.22em] text-(--color-text-muted)">
                     Allocation {index + 1}
                   </p>
                   {!readOnly && monthForms.length > 1 ? (
@@ -1409,7 +1409,7 @@ export function TimesheetEditor({
                   ) : null}
                 </div>
                 <div className="mt-4 grid gap-4 md:grid-cols-2">
-                  <label className="text-sm font-medium text-stone-700">
+                  <label className="text-sm font-medium text-(--color-text-subtle)">
                     Sub-program
                     <Select
                       className="mt-2"
@@ -1425,7 +1425,7 @@ export function TimesheetEditor({
                       ))}
                     </Select>
                   </label>
-                  <label className="text-sm font-medium text-stone-700">
+                  <label className="text-sm font-medium text-(--color-text-subtle)">
                     Total hours
                     <Input
                       className="mt-2"
@@ -1438,7 +1438,7 @@ export function TimesheetEditor({
                       }
                     />
                   </label>
-                  <label className="text-sm font-medium text-stone-700 md:col-span-2">
+                  <label className="text-sm font-medium text-(--color-text-subtle) md:col-span-2">
                     Description
                     <Textarea
                       className="mt-2"
@@ -1469,8 +1469,8 @@ export function TimesheetEditor({
         <Card className="space-y-6">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <h3 className="text-xl font-semibold text-stone-950">Day view</h3>
-              <p className="mt-1 text-sm text-stone-600">
+              <h3 className="text-xl font-semibold text-(--color-text)">Day view</h3>
+              <p className="mt-1 text-sm text-(--color-text-muted)">
                 Day View remains the source of truth. Decimal hours are normalized to the
                 nearest valid 10-minute increment.
               </p>
@@ -1486,16 +1486,16 @@ export function TimesheetEditor({
             {draft.entries.map((entry, index) => (
               <div
                 key={getEntryKey(entry)}
-                className={`rounded-[28px] border border-stone-200 bg-stone-50 p-4 ${getEntryAnimationClass(
+                className={`rounded-[28px] border border-(--color-border) bg-(--color-surface-raised) p-4 ${getEntryAnimationClass(
                   entry,
                 )}`}
               >
                 <div className="mb-4 flex items-center justify-between gap-3">
                   <div>
-                    <p className="text-xs uppercase tracking-[0.22em] text-stone-500">
+                    <p className="text-xs uppercase tracking-[0.22em] text-(--color-text-muted)">
                       Entry {index + 1}
                     </p>
-                    <p className="mt-1 text-sm text-stone-600">{entry.entryType}</p>
+                    <p className="mt-1 text-sm text-(--color-text-muted)">{entry.entryType}</p>
                   </div>
                   {!readOnly ? (
                     <Button
@@ -1508,7 +1508,7 @@ export function TimesheetEditor({
                   ) : null}
                 </div>
                 <div className="grid gap-4">
-                  <label className="text-sm font-medium text-stone-700">
+                  <label className="text-sm font-medium text-(--color-text-subtle)">
                     Date
                     <Input
                       className="mt-2"
@@ -1520,7 +1520,7 @@ export function TimesheetEditor({
                       onChange={(event) => updateWorkDate(entry.__uiId, event.target.value)}
                     />
                   </label>
-                  <label className="text-sm font-medium text-stone-700">
+                  <label className="text-sm font-medium text-(--color-text-subtle)">
                     Sub-program
                     <Select
                       className="mt-2"
@@ -1538,7 +1538,7 @@ export function TimesheetEditor({
                       ))}
                     </Select>
                   </label>
-                  <label className="text-sm font-medium text-stone-700">
+                  <label className="text-sm font-medium text-(--color-text-subtle)">
                     Hours
                     <Input
                       className="mt-2"
@@ -1556,7 +1556,7 @@ export function TimesheetEditor({
                       }
                     />
                   </label>
-                  <label className="text-sm font-medium text-stone-700">
+                  <label className="text-sm font-medium text-(--color-text-subtle)">
                     Description
                     <Textarea
                       className="mt-2"
@@ -1577,7 +1577,7 @@ export function TimesheetEditor({
           <div className="hidden overflow-x-auto md:block">
             <table className="min-w-full border-separate border-spacing-y-3 text-sm">
               <thead>
-                <tr className="text-left text-stone-500">
+                <tr className="text-left text-(--color-text-muted)">
                   <th className="px-3">Date</th>
                   <th className="px-3">Sub-program</th>
                   <th className="px-3">Hours</th>
@@ -1590,7 +1590,7 @@ export function TimesheetEditor({
                 {draft.entries.map((entry) => (
                   <tr
                     key={getEntryKey(entry)}
-                    className={`rounded-2xl bg-stone-50 ${getEntryAnimationClass(entry)}`}
+                    className={`rounded-2xl bg-(--color-surface-raised) ${getEntryAnimationClass(entry)}`}
                   >
                     <td className="px-3 py-3">
                       <Input
@@ -1634,7 +1634,7 @@ export function TimesheetEditor({
                         }
                       />
                     </td>
-                    <td className="px-3 py-3 text-stone-600">
+                    <td className="px-3 py-3 text-(--color-text-muted)">
                       {entry.createdVia} / {entry.lastEditedVia}
                     </td>
                     <td className="px-3 py-3">
@@ -1700,7 +1700,7 @@ export function TimesheetEditor({
         <GlobalLoaderLink
           href="/dashboard"
           loaderMessage="Returning to dashboard..."
-          className="inline-flex min-h-11 items-center justify-center rounded-full border border-stone-300 bg-white px-4 py-2 text-sm font-semibold text-stone-700"
+          className="inline-flex min-h-11 items-center justify-center rounded-full border border-(--color-border-strong) bg-(--color-surface) px-4 py-2 text-sm font-semibold text-(--color-text-subtle)"
         >
           Back to dashboard
         </GlobalLoaderLink>

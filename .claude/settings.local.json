@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//d/projects/codex-jana-timesheet/**)",
+      "Read(//d/projects/codex-jana-timesheet//**)",
+      "Bash(node -e \"const tw = require\\('./node_modules/tailwindcss/package.json'\\); console.log\\(tw.version\\)\")",
+      "Bash(npm test *)"
+    ]
+  }
+}

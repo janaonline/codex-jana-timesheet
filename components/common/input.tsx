@@ -6,7 +6,7 @@ export function Input({ className, ...props }: InputProps) {
   return (
     <input
       className={cn(
-        "w-full rounded-3xl border border-stone-300 bg-white px-4 py-3 text-sm text-stone-950 outline-none transition placeholder:text-stone-400 focus:border-amber-300 focus:ring-4 focus:ring-amber-100",
+        "w-full rounded-3xl border border-(--color-border-strong) bg-(--color-surface) px-4 py-3 text-sm text-(--color-text) outline-none transition placeholder:text-(--color-text-placeholder) focus:border-(--color-primary) focus:ring-4 focus:ring-(--color-primary-ring) dark:[color-scheme:dark]",
         className,
       )}
       {...props}

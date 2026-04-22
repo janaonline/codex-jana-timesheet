@@ -9,7 +9,7 @@ export function PieChart({
 }) {
   if (!data.length) {
     return (
-      <div className="rounded-[24px] bg-stone-100 p-6 text-sm text-stone-600">
+      <div className="rounded-[24px] bg-(--color-surface-raised) p-6 text-sm text-(--color-text-muted)">
         No project allocations recorded yet.
       </div>
     );
@@ -28,7 +28,7 @@ export function PieChart({
   return (
     <div className="grid gap-6 lg:grid-cols-[220px_1fr] lg:items-center">
       <div
-        className="mx-auto h-52 w-52 rounded-full border border-white/70 shadow-inner"
+        className="mx-auto h-52 w-52 rounded-full border border-white/70 shadow-inner dark:border-stone-900/70"
         style={{
           background: `conic-gradient(${segments.join(", ")})`,
         }}
@@ -37,10 +37,10 @@ export function PieChart({
         {data.map((item) => (
           <div
             key={item.projectName}
-            className="flex items-center justify-between rounded-2xl bg-stone-50 px-4 py-3 text-sm"
+            className="flex items-center justify-between rounded-2xl bg-(--color-surface-raised) px-4 py-3 text-sm"
           >
-            <span className="font-medium text-stone-900">{item.projectName}</span>
-            <span className="text-stone-600">
+            <span className="font-medium text-(--color-text)">{item.projectName}</span>
+            <span className="text-(--color-text-muted)">
               {item.hours}h ({item.percentage}%)
             </span>
           </div>

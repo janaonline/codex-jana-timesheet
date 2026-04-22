@@ -6,6 +6,7 @@ import { Badge } from "@/components/common/badge";
 import { Button } from "@/components/common/button";
 import { GlobalLoaderLink } from "@/components/common/global-loader-link";
 import { useGlobalLoader } from "@/components/common/global-loader-provider";
+import { ThemeToggle } from "@/components/common/theme-toggle";
 import { cn } from "@/lib/utils";
 import type { Permission, UserRole } from "@/lib/constants";
 
@@ -50,17 +51,20 @@ export function PortalShell({
   }
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-(--color-bg)">
       <div className="mx-auto flex min-h-screen max-w-[1440px] flex-col gap-6 px-4 py-4 sm:px-6 lg:grid lg:grid-cols-[280px_minmax(0,1fr)] lg:px-8 lg:py-6">
-        <aside className="rounded-[32px] border border-stone-200 bg-white p-4 shadow-[0_14px_48px_-34px_rgba(17,17,17,0.25)] sm:p-6">
+        <aside className="rounded-[32px] border border-(--color-border) bg-(--color-surface) p-4 shadow-[0_14px_48px_-34px_rgba(17,17,17,0.25)] sm:p-6">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between lg:flex-col lg:justify-start">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.3em] text-stone-500">
-                Janaagraha
-              </p>
-              <h1 className="mt-2 text-2xl font-semibold text-stone-950">
-                Directors Timesheet
-              </h1>
+            <div className="flex items-start justify-between gap-2">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.3em] text-(--color-text-muted)">
+                  Janaagraha
+                </p>
+                <h1 className="mt-2 text-2xl font-semibold text-(--color-text)">
+                  Directors Timesheet
+                </h1>
+              </div>
+              <ThemeToggle className="mt-1 shrink-0 lg:mt-2" />
             </div>
             <Button
               variant="secondary"
@@ -71,9 +75,9 @@ export function PortalShell({
             </Button>
           </div>
 
-          <div className="mt-5 rounded-[28px] border border-stone-200 bg-stone-50 px-4 py-4">
-            <p className="text-xs uppercase tracking-[0.24em] text-stone-500">Signed in as</p>
-            <p className="mt-2 text-lg font-semibold text-stone-950">{userName}</p>
+          <div className="mt-5 rounded-[28px] border border-(--color-border) bg-(--color-surface-raised) px-4 py-4">
+            <p className="text-xs uppercase tracking-[0.24em] text-(--color-text-muted)">Signed in as</p>
+            <p className="mt-2 text-lg font-semibold text-(--color-text)">{userName}</p>
             <div className="mt-3">
               <Badge tone={role}>{role.replaceAll("_", " ")}</Badge>
             </div>
@@ -89,7 +93,7 @@ export function PortalShell({
                   "shrink-0 rounded-full border px-4 py-2.5 text-sm font-medium transition lg:rounded-2xl lg:px-4 lg:py-3",
                   currentPath === item.href
                     ? "border-amber-300 bg-amber-300 text-stone-950"
-                    : "border-stone-200 bg-white text-stone-700 hover:border-stone-300 hover:bg-stone-50",
+                    : "border-(--color-border) bg-(--color-surface) text-(--color-text-subtle) hover:border-(--color-border-strong) hover:bg-(--color-surface-raised)",
                 )}
               >
                 {item.label}

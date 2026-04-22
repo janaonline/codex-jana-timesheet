@@ -26,35 +26,35 @@ export default async function ConfirmationPage({
       currentPath="/dashboard"
     >
       <Card className="max-w-3xl space-y-5">
-        <p className="text-xs uppercase tracking-[0.28em] text-stone-500">
+        <p className="text-xs uppercase tracking-[0.28em] text-(--color-text-muted)">
           Submission confirmation
         </p>
-        <h2 className="text-4xl font-semibold text-stone-950">
+        <h2 className="text-4xl font-semibold text-(--color-text)">
           {data.timesheet.monthLabel} timesheet submitted
         </h2>
         <Badge tone={data.timesheet.status}>
           {data.timesheet.status.replaceAll("_", " ")}
         </Badge>
-        <p className="text-sm leading-6 text-stone-600">
+        <p className="text-sm leading-6 text-(--color-text-muted)">
           Submission confirmation email has been queued. The timesheet is now locked and can
           only be reopened through the previous-month request edit workflow.
         </p>
         <div className="grid gap-4 md:grid-cols-3">
           <Card>
-            <p className="text-xs uppercase tracking-[0.24em] text-stone-500">Recorded</p>
-            <p className="mt-2 text-2xl font-semibold text-stone-950">
+            <p className="text-xs uppercase tracking-[0.24em] text-(--color-text-muted)">Recorded</p>
+            <p className="mt-2 text-2xl font-semibold text-(--color-text)">
               {data.timesheet.totalHours}h
             </p>
           </Card>
           <Card>
-            <p className="text-xs uppercase tracking-[0.24em] text-stone-500">Assigned</p>
-            <p className="mt-2 text-2xl font-semibold text-stone-950">
+            <p className="text-xs uppercase tracking-[0.24em] text-(--color-text-muted)">Assigned</p>
+            <p className="mt-2 text-2xl font-semibold text-(--color-text)">
               {data.timesheet.assignedHours}h
             </p>
           </Card>
           <Card>
-            <p className="text-xs uppercase tracking-[0.24em] text-stone-500">Completion</p>
-            <p className="mt-2 text-2xl font-semibold text-stone-950">
+            <p className="text-xs uppercase tracking-[0.24em] text-(--color-text-muted)">Completion</p>
+            <p className="mt-2 text-2xl font-semibold text-(--color-text)">
               {data.timesheet.completionPercentage}%
             </p>
           </Card>

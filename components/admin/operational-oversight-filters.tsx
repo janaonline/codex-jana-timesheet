@@ -54,11 +54,11 @@ export function OperationalOversightFilters({
   }
 
   return (
-    <div className="grid gap-4 rounded-[28px] border border-stone-200 bg-stone-50 p-4 lg:grid-cols-2">
-      <label className="text-sm text-stone-700">
+    <div className="grid gap-4 rounded-[28px] border border-(--color-border) bg-(--color-surface-raised) p-4 lg:grid-cols-2">
+      <label className="text-sm text-(--color-text-subtle)">
         Oversight scope
         <Select
-          className="mt-2 bg-white"
+          className="mt-2"
           value={selectedMonthKey ?? ""}
           onChange={(event) =>
             updateFilters({
@@ -75,10 +75,10 @@ export function OperationalOversightFilters({
         </Select>
       </label>
 
-      <label className="text-sm text-stone-700">
+      <label className="text-sm text-(--color-text-subtle)">
         Edit request metric
         <Select
-          className="mt-2 bg-white"
+          className="mt-2"
           value={selectedEditRequestStatus}
           onChange={(event) =>
             updateFilters({

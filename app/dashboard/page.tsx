@@ -30,15 +30,15 @@ export default async function DashboardPage() {
       currentPath="/dashboard"
     >
       <Card className="space-y-5">
-        <p className="text-xs uppercase tracking-[0.28em] text-stone-500">
+        <p className="text-xs uppercase tracking-[0.28em] text-(--color-text-muted)">
           Timesheet dashboard
         </p>
         <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <h2 className="text-4xl font-semibold text-stone-950">
+            <h2 className="text-4xl font-semibold text-(--color-text)">
               {dashboard.currentTimesheet.monthLabel}
             </h2>
-            <p className="mt-3 max-w-2xl text-sm leading-6 text-stone-600">
+            <p className="mt-3 max-w-2xl text-sm leading-6 text-(--color-text-muted)">
               Track daily contributions, keep the draft complete, and make sure the
               previous month is manually submitted before the 5th cutoff if it is not
               eligible for auto-submit.
@@ -71,10 +71,10 @@ export default async function DashboardPage() {
         <Card className="space-y-5">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-xs uppercase tracking-[0.24em] text-stone-500">
+              <p className="text-xs uppercase tracking-[0.24em] text-(--color-text-muted)">
                 Current month progress
               </p>
-              <p className="mt-2 text-3xl font-semibold text-stone-950">
+              <p className="mt-2 text-3xl font-semibold text-(--color-text)">
                 {dashboard.currentTimesheet.totalHours} / {dashboard.currentTimesheet.assignedHours} hours
               </p>
             </div>
@@ -89,13 +89,13 @@ export default async function DashboardPage() {
         </Card>
 
         <Card className="space-y-4">
-          <p className="text-xs uppercase tracking-[0.24em] text-stone-500">
+          <p className="text-xs uppercase tracking-[0.24em] text-(--color-text-muted)">
             Previous month status
           </p>
           <Badge tone={dashboard.previousTimesheet.status}>
             {dashboard.previousTimesheet.status.replaceAll("_", " ")}
           </Badge>
-          <p className="text-sm text-stone-600">
+          <p className="text-sm text-(--color-text-muted)">
             Completion: {dashboard.previousTimesheet.completionPercentage}% | Remaining:{" "}
             {dashboard.previousTimesheet.remainingHours} hours
           </p>
@@ -110,21 +110,21 @@ export default async function DashboardPage() {
 
       <div className="grid gap-6 xl:grid-cols-[1fr_1fr]">
         <Card className="space-y-4">
-          <p className="text-xs uppercase tracking-[0.24em] text-stone-500">
+          <p className="text-xs uppercase tracking-[0.24em] text-(--color-text-muted)">
             Upcoming deadlines and reminders
           </p>
           {dashboard.upcomingDeadlines.map((deadline) => (
             <div
               key={deadline.label}
-              className="rounded-[22px] bg-stone-50 px-4 py-4 text-sm"
+              className="rounded-[22px] bg-(--color-surface-raised) px-4 py-4 text-sm"
             >
-              <p className="font-semibold text-stone-900">{deadline.label}</p>
-              <p className="mt-1 text-stone-600">{deadline.date}</p>
+              <p className="font-semibold text-(--color-text)">{deadline.label}</p>
+              <p className="mt-1 text-(--color-text-muted)">{deadline.date}</p>
             </div>
           ))}
         </Card>
         <Card className="space-y-4">
-          <p className="text-xs uppercase tracking-[0.24em] text-stone-500">
+          <p className="text-xs uppercase tracking-[0.24em] text-(--color-text-muted)">
             Project allocation breakdown
           </p>
           <PieChart data={dashboard.allocationBreakdown} />
@@ -132,7 +132,7 @@ export default async function DashboardPage() {
       </div>
 
       <Card className="space-y-4">
-        <p className="text-xs uppercase tracking-[0.24em] text-stone-500">
+        <p className="text-xs uppercase tracking-[0.24em] text-(--color-text-muted)">
           Historical submission record
         </p>
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
@@ -141,17 +141,17 @@ export default async function DashboardPage() {
               key={item.id}
               href={`/timesheets/${item.id}`}
               loaderMessage="Loading timesheet..."
-              className="rounded-[22px] border border-stone-200 bg-stone-50 px-4 py-4 transition hover:border-teal-300 hover:bg-white"
+              className="rounded-[22px] border border-(--color-border) bg-(--color-surface-raised) px-4 py-4 transition hover:border-teal-300 hover:bg-(--color-surface)"
             >
               <div className="flex items-center justify-between">
-                <p className="font-semibold text-stone-900">{item.monthLabel}</p>
+                <p className="font-semibold text-(--color-text)">{item.monthLabel}</p>
                 <Badge tone={item.status}>{item.status.replaceAll("_", " ")}</Badge>
               </div>
-              <p className="mt-2 text-sm text-stone-600">
+              <p className="mt-2 text-sm text-(--color-text-muted)">
                 Completion: {item.completionPercentage}%
               </p>
               {item.submittedAt ? (
-                <p className="mt-1 text-xs uppercase tracking-[0.18em] text-stone-500">
+                <p className="mt-1 text-xs uppercase tracking-[0.18em] text-(--color-text-muted)">
                   Submitted {formatDisplayDate(item.submittedAt)}
                 </p>
               ) : null}

@@ -30,8 +30,8 @@ export function HistoricalMonthPicker({
   }
 
   return (
-    <div className="rounded-[28px] border border-stone-200 bg-stone-50 p-4">
-      <p className="text-xs font-semibold uppercase tracking-[0.24em] text-stone-500">
+    <div className="rounded-[28px] border border-(--color-border) bg-(--color-surface-raised) p-4">
+      <p className="text-xs font-semibold uppercase tracking-[0.24em] text-(--color-text-muted)">
         Open Any Past Month
       </p>
       <div className="mt-3 flex flex-col gap-3 sm:flex-row">

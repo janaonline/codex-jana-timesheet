@@ -1,20 +1,95 @@
 @import "tailwindcss";
 
+/* Enable dark: prefix — triggers when .dark class is on any ancestor */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* ── Light theme (default) ────────────────────────────────────────────── */
 :root {
+  /* Page & surface */
+  --color-bg:             #ffffff;
+  --color-surface:        #ffffff;
+  --color-surface-raised: #fafaf9; /* stone-50 */
+
+  /* Borders */
+  --color-border:         #e7e5e4; /* stone-200 */
+  --color-border-strong:  #d6d3d1; /* stone-300 */
+
+  /* Text */
+  --color-text:             #0c0a09; /* stone-950 */
+  --color-text-subtle:      #44403c; /* stone-700 */
+  --color-text-muted:       #57534e; /* stone-600 */
+  --color-text-placeholder: #a8a29e; /* stone-400 */
+
+  /* Primary action (amber — same in both modes) */
+  --color-primary:      #fcd34d; /* amber-300 */
+  --color-primary-hover:#fbbf24; /* amber-400 */
+  --color-primary-ring: #fef3c7; /* amber-100 */
+  --color-primary-text: #0c0a09; /* stone-950 — always dark; amber fill is theme-invariant */
+
+  /* Error / destructive */
+  --color-error-bg:     #fff1f2; /* rose-50  */
+  --color-error-border: #fecdd3; /* rose-200 */
+  --color-error-text:   #be123c; /* rose-700 */
+
+  /* Overlay (modal backdrop) */
+  --color-overlay: rgba(12, 10, 9, 0.45);
+
+  /* Legacy vars — kept because global-loader-provider references them directly */
   --background: #ffffff;
-  --foreground: #111111;
-  --muted: #525252;
-  --card: #ffffff;
-  --line: #e5e5e5;
+  --foreground: #0c0a09;
+  --muted:      #57534e;
+  --card:       #ffffff;
+  --line:       #e7e5e4;
 }
 
+/* ── Dark theme ───────────────────────────────────────────────────────── */
+.dark {
+  /* Page & surface — stone scale from the dark end */
+  --color-bg:             #0c0a09; /* stone-950 */
+  --color-surface:        #1c1917; /* stone-900 */
+  --color-surface-raised: #292524; /* stone-800 */
+
+  /* Borders */
+  --color-border:         #292524; /* stone-800 */
+  --color-border-strong:  #44403c; /* stone-700 */
+
+  /* Text */
+  --color-text:             #fafaf9; /* stone-50  */
+  --color-text-subtle:      #d6d3d1; /* stone-300 */
+  --color-text-muted:       #a8a29e; /* stone-400 */
+  --color-text-placeholder: #57534e; /* stone-600 */
+
+  /* Primary action — amber unchanged; contrast 9.8:1 on stone-950 */
+  --color-primary:      #fcd34d;
+  --color-primary-hover:#fbbf24;
+  --color-primary-ring: rgba(252, 211, 77, 0.15);
+  --color-primary-text: #0c0a09;
+
+  /* Error / destructive */
+  --color-error-bg:     #1c0607;
+  --color-error-border: #7f1d1d; /* rose-900 */
+  --color-error-text:   #fca5a5; /* rose-300 */
+
+  /* Overlay */
+  --color-overlay: rgba(0, 0, 0, 0.6);
+
+  /* Legacy vars updated so global-loader-provider auto-adapts */
+  --background: #1c1917;
+  --foreground: #fafaf9;
+  --muted:      #a8a29e;
+  --card:       #1c1917;
+  --line:       #292524;
+}
+
+/* ── Tailwind @theme mapping ──────────────────────────────────────────── */
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
+  --color-background: var(--color-bg);
+  --color-foreground: var(--color-text);
   --font-sans: var(--font-manrope);
   --font-mono: var(--font-jetbrains-mono);
 }
 
+/* ── Base resets ──────────────────────────────────────────────────────── */
 * {
   box-sizing: border-box;
 }
@@ -24,19 +99,26 @@ html {
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
+  background: var(--color-bg);
+  color: var(--color-text);
   font-family: var(--font-manrope), sans-serif;
 }
 
-a {
-  color: inherit;
-  text-decoration: none;
+@layer base {
+  a {
+    color: inherit;
+    text-decoration: none;
+  }
 }
 
 ::selection {
   background: #fde047;
   color: #111111;
+}
+
+.dark ::selection {
+  background: #fcd34d;
+  color: #0c0a09;
 }
 
 button,
