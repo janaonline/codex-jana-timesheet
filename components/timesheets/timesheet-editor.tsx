@@ -2,7 +2,14 @@
 
 import { startOfWeek } from "date-fns";
 import { formatInTimeZone } from "date-fns-tz";
-import { startTransition, useEffect, useMemo, useRef, useState } from "react";
+import {
+  startTransition,
+  type CSSProperties,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useRouter } from "next/navigation";
 
 import { Badge } from "@/components/common/badge";
@@ -98,6 +105,13 @@ type EntryTimerKind = "enter" | "remove";
 
 const ENTRY_ANIMATION_MS = 500;
 const ENTRY_ENTER_FRAME_MS = 20;
+
+// Native select popups can stay light while inheriting the dark select text color.
+const calendarDayStateOptionStyle = {
+  colorScheme: "light",
+  color: "CanvasText",
+  backgroundColor: "Canvas",
+} satisfies CSSProperties;
 
 function createEditorEntry(entry: EditorEntrySeed): EditorEntry {
   return {
@@ -1210,10 +1224,18 @@ export function TimesheetEditor({
                         )
                       }
                     >
-                      <option value="NONE">Working Day</option>
-                      <option value="HALF_DAY">Half Day Leave</option>
-                      <option value="FULL_DAY">Full Day Leave</option>
-                      <option value="HOLIDAY">Holiday</option>
+                      <option value="NONE" style={calendarDayStateOptionStyle}>
+                        Working Day
+                      </option>
+                      <option value="HALF_DAY" style={calendarDayStateOptionStyle}>
+                        Half Day Leave
+                      </option>
+                      <option value="FULL_DAY" style={calendarDayStateOptionStyle}>
+                        Full Day Leave
+                      </option>
+                      <option value="HOLIDAY" style={calendarDayStateOptionStyle}>
+                        Holiday
+                      </option>
                     </Select>
                   ) : (
                     <p className="mt-2 font-semibold text-(--color-text)">{stateLabel}</p>
