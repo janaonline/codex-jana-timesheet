@@ -225,10 +225,126 @@ export function LoginScreen({
     replaceLocation(result?.url ?? "/auth/set-password");
   }
 
+  const loginBgStyles = `
+    @keyframes login-float-up {
+      0%   { transform: translateY(0) rotate(var(--r0)); opacity: 0; }
+      8%   { opacity: 1; }
+      90%  { opacity: 0.85; }
+      100% { transform: translateY(-110vh) rotate(var(--r1)); opacity: 0; }
+    }
+    @keyframes login-float-diagonal {
+      0%   { transform: translate(0, 0) rotate(var(--r0)); opacity: 0; }
+      8%   { opacity: 1; }
+      90%  { opacity: 0.75; }
+      100% { transform: translate(var(--dx, 0px), -105vh) rotate(var(--r1)); opacity: 0; }
+    }
+    @keyframes login-float-sway {
+      0%   { transform: translateY(0) translateX(0) rotate(var(--r0)); opacity: 0; }
+      25%  { transform: translateY(-25vh) translateX(var(--sx, 0px)) rotate(var(--r-mid, 0deg)); opacity: 1; }
+      75%  { transform: translateY(-75vh) translateX(calc(var(--sx, 0px) * -0.5)) rotate(var(--r-mid, 0deg)); opacity: 0.8; }
+      100% { transform: translateY(-108vh) translateX(0) rotate(var(--r1)); opacity: 0; }
+    }
+    .login-bg-shape {
+      position: absolute;
+      border-radius: 4px;
+      border: 1px solid var(--color-border);
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .login-bg-shape { animation: none !important; opacity: 0 !important; }
+    }
+  `;
+
   return (
-    <main className="relative min-h-screen bg-(--color-bg) px-4 py-8 text-(--color-text) sm:px-6 lg:px-8">
+    <main className="relative min-h-screen overflow-hidden bg-(--color-bg) px-4 py-8 text-(--color-text) sm:px-6 lg:px-8">
       {/* Theme toggle — fixed top-right, visible on all login views */}
       <ThemeToggle className="fixed right-4 top-4 z-10" />
+
+      {/* ── Login background animation ─────────────────────────────
+          Pure CSS floating geometry. Uses --color-border and
+          --color-surface-raised tokens so it adapts to dark/light
+          automatically. Amber fills use rgba on the amber-300 hex
+          which stays constant in both themes (per globals.css).
+          aria-hidden — decorative only.
+      ─────────────────────────────────────────────────────────── */}
+      <style dangerouslySetInnerHTML={{ __html: loginBgStyles }} />
+      <div
+        aria-hidden="true"
+        className="pointer-events-none fixed inset-0 z-0 overflow-hidden"
+      >
+        {/* Radial vignette — clears the centre for the login card */}
+        <div
+          className="absolute inset-0 z-10"
+          style={{
+            background:
+              "radial-gradient(ellipse 70% 65% at 50% 50%, transparent 30%, color-mix(in srgb, var(--color-bg) 96%, transparent) 100%)",
+          }}
+        />
+
+        <div className="login-bg-shape" style={{ width:160, height:90,
+          background:"var(--color-surface-raised)", left:"6%", bottom:-100,
+          ["--r0" as string]:"-4deg", ["--r1" as string]:"6deg", ["--sx" as string]:"30px",
+          animation:"login-float-sway 22s ease-in-out infinite 0s" }} />
+
+        <div className="login-bg-shape" style={{ width:48, height:140,
+          background:"rgba(252,211,77,0.14)", left:"15%", bottom:-160,
+          ["--r0" as string]:"2deg", ["--r1" as string]:"-5deg",
+          animation:"login-float-up 26s linear infinite -8s" }} />
+
+        <div className="login-bg-shape" style={{ width:36, height:36,
+          background:"var(--color-surface-raised)", left:"22%", bottom:-50,
+          ["--r0" as string]:"8deg", ["--r1" as string]:"-8deg", ["--sx" as string]:"-20px",
+          animation:"login-float-sway 18s ease-in-out infinite -4s" }} />
+
+        <div className="login-bg-shape" style={{ width:110, height:64,
+          background:"rgba(252,211,77,0.14)", left:"30%", bottom:-80,
+          ["--r0" as string]:"-2deg", ["--r1" as string]:"4deg", ["--dx" as string]:"-18px",
+          animation:"login-float-diagonal 24s ease-in-out infinite -11s" }} />
+
+        <div className="login-bg-shape" style={{ width:200, height:40,
+          background:"var(--color-surface-raised)", left:"40%", bottom:-60,
+          ["--r0" as string]:"1deg", ["--r1" as string]:"-3deg",
+          animation:"login-float-up 30s linear infinite -18s" }} />
+
+        <div className="login-bg-shape" style={{ width:44, height:44,
+          background:"rgba(252,211,77,0.14)", right:"34%", bottom:-60,
+          ["--r0" as string]:"-6deg", ["--r1" as string]:"10deg", ["--dx" as string]:"20px",
+          animation:"login-float-diagonal 20s ease-in-out infinite -6s" }} />
+
+        <div className="login-bg-shape" style={{ width:80, height:120,
+          background:"var(--color-surface-raised)", right:"22%", bottom:-140,
+          ["--r0" as string]:"3deg", ["--r1" as string]:"-6deg", ["--sx" as string]:"25px",
+          animation:"login-float-sway 28s ease-in-out infinite -14s" }} />
+
+        <div className="login-bg-shape" style={{ width:140, height:52,
+          background:"rgba(252,211,77,0.14)", right:"10%", bottom:-70,
+          ["--r0" as string]:"-3deg", ["--r1" as string]:"5deg",
+          animation:"login-float-up 23s linear infinite -2s" }} />
+
+        <div className="login-bg-shape" style={{ width:40, height:160,
+          background:"var(--color-surface-raised)", right:"4%", bottom:-180,
+          ["--r0" as string]:"5deg", ["--r1" as string]:"-4deg", ["--dx" as string]:"-10px",
+          animation:"login-float-diagonal 32s ease-in-out infinite -20s" }} />
+
+        <div className="login-bg-shape" style={{ width:24, height:24,
+          background:"rgba(252,211,77,0.14)", left:"8%", bottom:-30,
+          ["--r0" as string]:"12deg", ["--r1" as string]:"-12deg", ["--sx" as string]:"15px",
+          animation:"login-float-sway 16s ease-in-out infinite -9s" }} />
+
+        <div className="login-bg-shape" style={{ width:28, height:28,
+          background:"var(--color-surface-raised)", right:"14%", bottom:-40,
+          ["--r0" as string]:"-8deg", ["--r1" as string]:"8deg", ["--sx" as string]:"-18px",
+          animation:"login-float-sway 19s ease-in-out infinite -3s" }} />
+
+        <div className="login-bg-shape" style={{ width:120, height:70,
+          background:"var(--color-surface-raised)", left:"3%", bottom:-90,
+          ["--r0" as string]:"4deg", ["--r1" as string]:"-7deg",
+          animation:"login-float-up 34s linear infinite -25s" }} />
+
+        <div className="login-bg-shape" style={{ width:56, height:88,
+          background:"rgba(252,211,77,0.14)", right:"28%", bottom:-100,
+          ["--r0" as string]:"-5deg", ["--r1" as string]:"5deg", ["--dx" as string]:"12px",
+          animation:"login-float-diagonal 27s ease-in-out infinite -16s" }} />
+      </div>
 
       <Modal
         open={sessionExpiredOpen}
@@ -249,7 +365,7 @@ export function LoginScreen({
         </div>
       </Modal>
 
-      <div className="mx-auto flex min-h-[calc(100vh-64px)] max-w-6xl flex-col justify-center gap-8 lg:grid lg:grid-cols-[1.05fr_0.95fr] lg:items-center">
+      <div className="relative z-10 mx-auto flex min-h-[calc(100vh-64px)] max-w-6xl flex-col justify-center gap-8 lg:grid lg:grid-cols-[1.05fr_0.95fr] lg:items-center">
         <section className="space-y-6">
           <div className="inline-flex rounded-full border border-(--color-border) bg-(--color-surface-raised) px-4 py-2 text-xs font-semibold uppercase tracking-[0.24em] text-(--color-text-subtle)">
             Janaagraha internal portal
