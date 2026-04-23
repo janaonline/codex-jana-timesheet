@@ -114,4 +114,7 @@ The app has full dark mode. All new UI code must follow these rules.
 - `components/common/input.tsx` — shared `Input` component with `dark:[color-scheme:dark]`
 - `components/timesheets/timesheet-editor.tsx` — `calendarDayStateOptionStyle` constant: reference for `<option>` inline-style pattern
 
+**Login page animation layer:**
+`components/auth/login-screen.tsx` contains an inline `<style>` block (`loginBgStyles`) that defines three keyframes (`login-float-up`, `login-float-diagonal`, `login-float-sway`) and a `.login-bg-shape` base class. The animation canvas is a `fixed inset-0 z-0` div inserted as the first child of `<main>`, after `<ThemeToggle>`. The main content wrapper carries `relative z-10` to sit above it. Shape colours use `var(--color-border)` for strokes and `var(--color-surface-raised)` for neutral fills — these resolve automatically in both themes. Amber fills use the literal `rgba(252,211,77,0.14)` value because amber-300 is theme-invariant (same hex in both `:root` and `.dark` per `globals.css`). The vignette uses `color-mix(in srgb, var(--color-bg) 96%, transparent)` so it fades to the correct background in both modes. Do not replace token-based values with hardcoded hex when modifying this component.
+
 **Rule:** Any future change that modifies theme-related infrastructure (new tokens, new toggle placement, persistence mechanism change) must update both `README.md` (user-facing dark mode section) and `CLAUDE.md` (this rules section) in the same pass.

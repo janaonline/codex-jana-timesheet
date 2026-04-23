@@ -22,6 +22,9 @@ The application has full dark mode support across all user-facing routes.
 
 **Route coverage:** `/login`, `/auth/set-password`, `/dashboard`, `/timesheets/[id]`, `/timesheets/[id]/confirmation`, `/admin`, `/admin/edit-requests`, `/admin/reports`. The `/forbidden` and error pages are intentionally dark in both modes by design.
 
+**Login page background animation:**
+The `/login` page includes a pure CSS floating geometry animation layered behind the login card. Thirteen rectangular shapes drift upward with slow rotation using CSS keyframe animations (`login-float-up`, `login-float-diagonal`, `login-float-sway`). Shape strokes use `--color-border` and fills use `--color-surface-raised` (neutral) and `rgba(252,211,77,0.14)` (amber-tinted) — both resolve correctly in light and dark mode via the existing token system. A radial vignette clears the centre so the login card remains the visual focus. Animation is CSS-only, zero JS, zero additional libraries. `prefers-reduced-motion: reduce` disables all shapes. No other routes are affected.
+
 **Persistence:** The active theme is stored in `localStorage` under the key `"theme"` (`"light"` or `"dark"`). On first visit, falls back to the OS preference via `prefers-color-scheme`. Theme is restored before the first paint via a synchronous inline script in `<head>` — no flash on reload.
 
 **Architecture:**
