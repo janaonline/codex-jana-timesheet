@@ -1,7 +1,9 @@
 import type { ReminderKind, TimesheetStatus, UserRole } from "@/lib/constants";
 import {
+  getAutoSubmitTargetMonthKey,
   getMonthKey,
   getPreviousMonthKey,
+  getTimesheetAutoSubmitAt,
   isExactAutoSubmitMoment,
   isHistoricalMonth,
   isPastMonth,
@@ -20,7 +22,7 @@ export function isEligibleForAutoSubmit(params: {
     params.status === "DRAFT" &&
     params.assignedMinutes > 0 &&
     params.totalMinutes === params.assignedMinutes &&
-    params.monthKey === getPreviousMonthKey(params.reference) &&
+    params.monthKey === getAutoSubmitTargetMonthKey(params.reference) &&
     isExactAutoSubmitMoment(params.reference)
   );
 }
@@ -32,7 +34,7 @@ export function shouldFreezeAfterCutoff(params: {
 }) {
   return (
     params.status === "DRAFT" &&
-    params.monthKey === getPreviousMonthKey(params.reference) &&
+    params.monthKey === getAutoSubmitTargetMonthKey(params.reference) &&
     isExactAutoSubmitMoment(params.reference)
   );
 }
@@ -171,12 +173,5 @@ export function isEligibleForReminder(params: {
 }
 
 export function getCutoffDate(monthKey: string) {
-  const [year, month] = monthKey.split("-").map(Number);
-  const nextMonth = new Date(Date.UTC(year, month - 1, 1));
-  nextMonth.setUTCMonth(nextMonth.getUTCMonth() + 1);
-  return new Date(
-    `${nextMonth.getUTCFullYear()}-${String(
-      nextMonth.getUTCMonth() + 1,
-    ).padStart(2, "0")}-05T00:00:00+05:30`,
-  );
+  return getTimesheetAutoSubmitAt(monthKey);
 }

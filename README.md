@@ -51,7 +51,7 @@ The `/login` page includes a pure CSS floating geometry animation layered behind
 
 ## What The Application Does
 
-- Gives timesheet owners a dashboard for the current month, previous month, and recent history.
+- Gives timesheet owners a dashboard for the current payroll period, prior payroll period, and recent history.
 - Supports day-level entry editing with autosave and local draft backup.
 - Supports week and month allocation helpers that generate day-level rows.
 - Tracks working capacity by business day, leave, manual holiday, join date, and exit date.
@@ -81,12 +81,12 @@ Role permissions come from the default matrix in [lib/constants.ts](/d:/projects
 
 ### Timesheet Capture
 
-- `/dashboard` shows current progress, previous-month status, deadlines, allocation breakdown, and recent history.
+- `/dashboard` shows current-period progress, prior-period status, deadlines, allocation breakdown, and recent history.
 - `/timesheets/[id]` hosts the editor.
 - The editor has three working modes:
   - `day`: direct row editing and the source of truth.
   - `week`: evenly distributes a total across weekdays in the selected week.
-  - `month`: evenly distributes a total across valid working dates in the month.
+  - `month`: evenly distributes a total across valid working dates in the labelled payroll period.
 - Calendar state supports:
   - `NONE`
   - `HALF_DAY`
@@ -97,7 +97,9 @@ Role permissions come from the default matrix in [lib/constants.ts](/d:/projects
 ### Submission And Edit Requests
 
 - Manual submission is allowed only when total recorded minutes exactly equal assigned minutes.
-- Previous-month drafts are evaluated at `12:00 AM IST` on the 5th:
+- Timesheet periods are payroll-aligned: `YYYY-MM` covers the previous month's 20th inclusive through the labelled month's 20th exclusive.
+- Example: `2026-05` covers 20 Apr 2026 through 19 May 2026 and displays as `May 2026 (20 Apr - 19 May)`.
+- Labelled-period drafts are evaluated at `12:00 AM IST` on the 25th of the labelled month:
   - exact completion -> `AUTO_SUBMITTED`
   - otherwise -> `FROZEN`
 - Approved edit requests create a temporary edit window and later expire back to `FROZEN`.
@@ -230,7 +232,7 @@ The seed script creates sample data for local workflow testing. It also prints l
 - The scheduler starts through [instrumentation.ts](/d:/projects/codex-jana-timesheet/.git/codex-jana-timesheet/instrumentation.ts) when `ENABLE_SCHEDULER=true`.
 - The cron expression is `0 0 * * *` in `Asia/Kolkata`.
 - Every daily run first expires edit windows.
-- On the 5th at midnight IST, the run performs auto-submit or freeze logic.
+- On the 25th of the labelled month at midnight IST, the run performs auto-submit or freeze logic for that labelled period.
 - On other eligible dates, the run sends reminder emails.
 - Manual job triggers:
   - `POST /api/v1/jobs/auto-submit`

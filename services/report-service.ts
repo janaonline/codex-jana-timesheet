@@ -9,6 +9,8 @@ import {
   getMonthLabel,
   getOnTimeSubmissionCutoff,
   getPreviousMonthKey,
+  getTimesheetPeriod,
+  isDateInTimesheetPeriod,
 } from "@/lib/time";
 import { average, percentage } from "@/lib/utils";
 import { minutesToHours } from "@/lib/timesheet-calculations";
@@ -131,11 +133,15 @@ function buildRequestResponseHours(requestedAt: Date, reviewedAt: Date | null) {
 }
 
 function calculateCompletionPercentage(timesheet: {
+  monthKey: string;
   assignedMinutes: number;
-  entries: Array<{ minutes: number }>;
+  entries: Array<{ minutes: number; workDate?: Date }>;
 }) {
   const totalLoggedMinutes = timesheet.entries.reduce(
-    (sum, entry) => sum + entry.minutes,
+    (sum, entry) =>
+      entry.workDate && !isDateInTimesheetPeriod(entry.workDate, timesheet.monthKey)
+        ? sum
+        : sum + entry.minutes,
     0,
   );
 
@@ -143,6 +149,8 @@ function calculateCompletionPercentage(timesheet: {
 }
 
 async function getTimesheetsForMonth(monthKey: string) {
+  const period = getTimesheetPeriod(monthKey);
+
   return prisma.timesheet.findMany({
     where: {
       monthKey,
@@ -151,6 +159,12 @@ async function getTimesheetsForMonth(monthKey: string) {
     include: {
       user: true,
       entries: {
+        where: {
+          workDate: {
+            gte: period.periodStart,
+            lt: period.periodEndExclusive,
+          },
+        },
         include: {
           project: true,
         },
@@ -168,6 +182,13 @@ function entryTypeForOrigin(
   createdVia: string,
 ): "Manual Entry" | "Auto Generated" {
   return createdVia === "DAY" ? "Manual Entry" : "Auto Generated";
+}
+
+function filterEntriesForTimesheetPeriod<T extends { workDate: Date }>(
+  monthKey: string,
+  entries: T[],
+) {
+  return entries.filter((entry) => isDateInTimesheetPeriod(entry.workDate, monthKey));
 }
 
 export async function getComplianceReport(monthKey = getPreviousMonthKey(new Date())) {
@@ -265,16 +286,21 @@ export async function getHoursUtilizationReport(
     directorName: timesheet.user.name,
     totalHours: Number(
       minutesToHours(
-        timesheet.entries.reduce((sum, entry) => sum + entry.minutes, 0),
+        filterEntriesForTimesheetPeriod(timesheet.monthKey, timesheet.entries).reduce(
+          (sum, entry) => sum + entry.minutes,
+          0,
+        ),
       ).toFixed(2),
     ),
   }));
 
   const projectHours = timesheets.flatMap((timesheet) =>
-    timesheet.entries.map((entry) => ({
-      projectName: entry.project.name,
-      hours: minutesToHours(entry.minutes),
-    })),
+    filterEntriesForTimesheetPeriod(timesheet.monthKey, timesheet.entries).map(
+      (entry) => ({
+        projectName: entry.project.name,
+        hours: minutesToHours(entry.minutes),
+      }),
+    ),
   );
 
   const totalsBySubProgram = Object.entries(
@@ -305,7 +331,13 @@ export async function getHoursUtilizationReport(
   const trendBuckets = recentTimesheets.reduce<Record<string, number>>(
     (accumulator, timesheet) => {
       const hours = minutesToHours(
-        timesheet.entries.reduce((sum, entry) => sum + entry.minutes, 0),
+        timesheet.entries.reduce(
+          (sum, entry) =>
+            isDateInTimesheetPeriod(entry.workDate, timesheet.monthKey)
+              ? sum + entry.minutes
+              : sum,
+          0,
+        ),
       );
       accumulator[timesheet.monthKey] = Number(
         ((accumulator[timesheet.monthKey] ?? 0) + hours).toFixed(2),
@@ -316,15 +348,17 @@ export async function getHoursUtilizationReport(
   );
 
   const entryDetails = timesheets.flatMap((timesheet) =>
-    timesheet.entries.map((entry) => ({
-      directorName: timesheet.user.name,
-      date: entry.workDate.toISOString(),
-      subProgramName: entry.project.name,
-      hours: minutesToHours(entry.minutes),
-      createdVia: entry.createdVia,
-      lastEditedVia: entry.lastEditedVia,
-      entryType: entryTypeForOrigin(entry.createdVia),
-    })),
+    filterEntriesForTimesheetPeriod(timesheet.monthKey, timesheet.entries).map(
+      (entry) => ({
+        directorName: timesheet.user.name,
+        date: entry.workDate.toISOString(),
+        subProgramName: entry.project.name,
+        hours: minutesToHours(entry.minutes),
+        createdVia: entry.createdVia,
+        lastEditedVia: entry.lastEditedVia,
+        entryType: entryTypeForOrigin(entry.createdVia),
+      }),
+    ),
   );
 
   const entryOriginBuckets = entryDetails.reduce<

@@ -1,7 +1,5 @@
 "use client";
 
-import { startOfWeek } from "date-fns";
-import { formatInTimeZone } from "date-fns-tz";
 import {
   startTransition,
   type CSSProperties,
@@ -356,58 +354,28 @@ function getActiveMonthDateBounds(
 ) {
   const monthDates = calendarDays
     .map((day) => day.workDate)
-    .filter((workDate) => workDate.startsWith(monthKey))
     .sort((left, right) => left.localeCompare(right));
-  const [yearValue, monthValue] = monthKey.split("-").map(Number);
-  const fallbackMaxDate = Number.isInteger(yearValue) && Number.isInteger(monthValue)
-    ? new Date(Date.UTC(yearValue, monthValue, 0)).toISOString().slice(0, 10)
-    : `${monthKey}-01`;
 
   return {
     minDate: monthDates[0] ?? `${monthKey}-01`,
-    maxDate: monthDates[monthDates.length - 1] ?? fallbackMaxDate,
+    maxDate: monthDates[monthDates.length - 1] ?? `${monthKey}-01`,
   };
 }
 
 function buildWeekOptions(calendarDays: TimesheetView["calendarDays"]) {
-  const options = new Map<
-    string,
-    {
-      weekStartDate: string;
-      label: string;
-    }
-  >();
+  const sortedDates = calendarDays
+    .map((day) => day.workDate)
+    .sort((left, right) => left.localeCompare(right));
 
-  for (const day of calendarDays) {
-    const monday = startOfWeek(new Date(`${day.workDate}T00:00:00+05:30`), {
-      weekStartsOn: 1,
-    });
-    const weekStartDate = formatInTimeZone(monday, "Asia/Kolkata", "yyyy-MM-dd");
-
-    if (options.has(weekStartDate)) {
-      continue;
-    }
-
-    const weekDates = Array.from({ length: 5 }, (_, index) => {
-      const nextDate = new Date(monday.getTime() + index * 24 * 60 * 60 * 1000);
-      return formatInTimeZone(nextDate, "Asia/Kolkata", "yyyy-MM-dd");
-    }).filter((workDate) => workDate.startsWith(day.workDate.slice(0, 7)));
-
-    if (!weekDates.length) {
-      continue;
-    }
-
-    options.set(weekStartDate, {
-      weekStartDate,
+  return Array.from({ length: Math.ceil(sortedDates.length / 7) }, (_, index) => {
+    const weekDates = sortedDates.slice(index * 7, index * 7 + 7);
+    return {
+      weekStartDate: weekDates[0] ?? "",
       label: `${formatDisplayDate(weekDates[0])} - ${formatDisplayDate(
         weekDates[weekDates.length - 1],
       )}`,
-    });
-  }
-
-  return [...options.values()].sort((left, right) =>
-    left.weekStartDate.localeCompare(right.weekStartDate),
-  );
+    };
+  }).filter((option) => option.weekStartDate);
 }
 
 function summarizeDateStates(timesheet: TimesheetView) {
@@ -1404,8 +1372,8 @@ export function TimesheetEditor({
             <div>
               <h3 className="text-xl font-semibold text-(--color-text)">Month allocation</h3>
               <p className="mt-1 text-sm text-(--color-text-muted)">
-                Allocate one sub-program across all valid dates in the month. The result is
-                written back as day-level rows.
+                Allocate one sub-program across all valid dates in the timesheet period.
+                The result is written back as day-level rows.
               </p>
             </div>
             {!readOnly ? (

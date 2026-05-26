@@ -29,10 +29,12 @@ export const DAILY_CAPACITY_MINUTES = 480;
 export const HALF_DAY_CAPACITY_MINUTES = 240;
 export const MINIMUM_TIME_ENTRY_MINUTES = 10;
 export const HOUR_INPUT_NORMALIZATION_TOLERANCE_MINUTES = 2;
+export const TIMESHEET_PERIOD_BOUNDARY_DAY = 20;
+export const FIXED_AUTO_SUBMIT_DAY = 25;
 export const DEFAULT_REMINDER_SCHEDULE = {
-  currentMonthDraftDays: [25, 28],
+  currentMonthDraftDays: [15, 18],
   currentMonthSubmitDay: "last-day",
-  nextMonthPendingDays: [3],
+  nextMonthPendingDays: [22, 24],
 } as const;
 
 export const USER_ROLES = [

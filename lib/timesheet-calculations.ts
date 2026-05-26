@@ -1,4 +1,3 @@
-import { startOfWeek } from "date-fns";
 import { formatInTimeZone } from "date-fns-tz";
 
 import {
@@ -10,7 +9,7 @@ import {
   type LeaveType,
 } from "@/lib/constants";
 import { AppError } from "@/lib/errors";
-import { listMonthDates } from "@/lib/time";
+import { getTimesheetPeriodDates, isDateInTimesheetPeriod } from "@/lib/time";
 import { groupBy, percentage, sanitizeText } from "@/lib/utils";
 
 export type DraftEntryInput = {
@@ -200,7 +199,7 @@ export function buildCalendarDays(params: {
   const joinDateKey = toIstDateKey(params.joinDate);
   const exitDateKey = toIstDateKey(params.exitDate);
 
-  return listMonthDates(params.monthKey).map((workDate) => {
+  return getTimesheetPeriodDates(params.monthKey).map((workDate) => {
     const isWeekend = isWeekendDate(workDate);
     const isSystemHoliday = holidaySet.has(workDate);
     const isWithinEmploymentWindow =
@@ -248,7 +247,9 @@ export function calculateAssignedHours(params: {
 }) {
   const effectiveDayStates =
     params.dayStates && params.dayStates.length > 0
-      ? normalizeDayStates(params.dayStates)
+      ? normalizeDayStates(params.dayStates).filter((state) =>
+          isDateInTimesheetPeriod(state.workDate, params.monthKey),
+        )
       : deriveLegacyDayStates({
           monthKey: params.monthKey,
           leaveDays: params.legacyLeaveDays ?? 0,
@@ -400,7 +401,7 @@ export function validateTimesheetInput(params: {
 
     const calendarDay = calendarDayMap.get(entry.workDate);
     if (!calendarDay) {
-      errors.push(`${label}: date must belong to the selected month.`);
+      errors.push(`${label}: date must belong to the selected timesheet period.`);
       return;
     }
 
@@ -469,14 +470,19 @@ export function assertValidTimesheetInput(params: {
 }
 
 export function listWeekdaysForWeekInMonth(weekStartDate: string, monthKey: string) {
-  const monday = startOfWeek(new Date(`${weekStartDate}T00:00:00+05:30`), {
-    weekStartsOn: 1,
-  });
-
-  return Array.from({ length: 5 }, (_, index) => {
-    const date = new Date(monday.getTime() + index * 24 * 60 * 60 * 1000);
+  return Array.from({ length: 7 }, (_, index) => {
+    const start = new Date(`${weekStartDate}T00:00:00+05:30`);
+    const date = new Date(start.getTime() + index * 24 * 60 * 60 * 1000);
     return formatInTimeZone(date, "Asia/Kolkata", "yyyy-MM-dd");
-  }).filter((workDate) => workDate.startsWith(monthKey));
+  }).filter((workDate) => {
+    if (!isDateInTimesheetPeriod(workDate, monthKey)) {
+      return false;
+    }
+
+    const [year, month, day] = workDate.split("-").map(Number);
+    const weekday = new Date(Date.UTC(year, month - 1, day)).getUTCDay();
+    return weekday !== 0 && weekday !== 6;
+  });
 }
 
 export function distributeMinutesEvenly(params: {

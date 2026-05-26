@@ -1,6 +1,7 @@
 import { addWorkingDaysFromNextBusinessDay, getReminderRun } from "@/lib/time";
 import {
   canEditTimesheet,
+  canSubmitTimesheet,
   canRequestEdit,
   getTimesheetViewAvailability,
   isEligibleForAutoSubmit,
@@ -10,14 +11,14 @@ import {
 } from "@/lib/workflow-rules";
 
 describe("workflow rules", () => {
-  it("allows auto-submit only at the exact 5th 12:00 AM IST moment", () => {
+  it("allows auto-submit only at the exact 25th 12:00 AM IST moment", () => {
     expect(
       isEligibleForAutoSubmit({
         status: "DRAFT",
         assignedMinutes: 9600,
         totalMinutes: 9600,
-        monthKey: "2026-02",
-        reference: new Date("2026-03-04T18:30:00.000Z"),
+        monthKey: "2026-05",
+        reference: new Date("2026-05-24T18:30:00.000Z"),
       }),
     ).toBe(true);
 
@@ -26,8 +27,8 @@ describe("workflow rules", () => {
         status: "DRAFT",
         assignedMinutes: 9600,
         totalMinutes: 9600,
-        monthKey: "2026-02",
-        reference: new Date("2026-03-05T01:00:00+05:30"),
+        monthKey: "2026-05",
+        reference: new Date("2026-05-25T01:00:00+05:30"),
       }),
     ).toBe(false);
   });
@@ -36,8 +37,8 @@ describe("workflow rules", () => {
     expect(
       shouldFreezeAfterCutoff({
         status: "DRAFT",
-        monthKey: "2026-02",
-        reference: new Date("2026-03-04T18:30:00.000Z"),
+        monthKey: "2026-05",
+        reference: new Date("2026-05-24T18:30:00.000Z"),
       }),
     ).toBe(true);
   });
@@ -196,13 +197,37 @@ describe("workflow rules", () => {
   });
 
   it("maps reminder schedules to the expected month context", () => {
-    expect(getReminderRun(new Date("2026-02-25T00:00:00+05:30"))).toEqual({
+    expect(getReminderRun(new Date("2026-05-15T00:00:00+05:30"))).toEqual({
       kind: "REMINDER_25TH",
-      targetMonthKey: "2026-02",
+      targetMonthKey: "2026-05",
     });
-    expect(getReminderRun(new Date("2026-03-03T00:00:00+05:30"))).toEqual({
+    expect(getReminderRun(new Date("2026-05-22T00:00:00+05:30"))).toEqual({
       kind: "REMINDER_3RD",
-      targetMonthKey: "2026-02",
+      targetMonthKey: "2026-05",
     });
+    expect(getReminderRun(new Date("2026-05-25T00:00:00+05:30"))).toEqual({
+      kind: "FINAL_NOTICE_5TH",
+      targetMonthKey: "2026-05",
+    });
+  });
+
+  it("blocks manual submission after the 25th cutoff", () => {
+    expect(
+      canSubmitTimesheet({
+        status: "DRAFT",
+        monthKey: "2026-05",
+        reference: new Date("2026-05-24T23:59:00+05:30"),
+        isExactlyComplete: true,
+      }),
+    ).toBe(true);
+
+    expect(
+      canSubmitTimesheet({
+        status: "DRAFT",
+        monthKey: "2026-05",
+        reference: new Date("2026-05-25T00:00:00+05:30"),
+        isExactlyComplete: true,
+      }),
+    ).toBe(false);
   });
 });

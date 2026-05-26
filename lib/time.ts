@@ -1,25 +1,132 @@
 import { addMonths, lastDayOfMonth } from "date-fns";
-import { formatInTimeZone, fromZonedTime, toZonedTime } from "date-fns-tz";
+import { formatInTimeZone, fromZonedTime } from "date-fns-tz";
 
-import { DEFAULT_REMINDER_SCHEDULE, IST_TIMEZONE, ReminderKind } from "@/lib/constants";
+import {
+  DEFAULT_REMINDER_SCHEDULE,
+  FIXED_AUTO_SUBMIT_DAY,
+  IST_TIMEZONE,
+  ReminderKind,
+  TIMESHEET_PERIOD_BOUNDARY_DAY,
+} from "@/lib/constants";
 import { pad } from "@/lib/utils";
 
+export type TimesheetPeriod = {
+  monthKey: string;
+  labelYear: number;
+  labelMonth: number;
+  periodStart: Date;
+  periodEndExclusive: Date;
+  visiblePeriodEnd: Date;
+  autoSubmitAt: Date;
+};
+
+function parseMonthKey(monthKey: string) {
+  const [year, month] = monthKey.split("-").map(Number);
+  return { year, month };
+}
+
+function formatDateKey(date: Date) {
+  return formatInTimeZone(date, IST_TIMEZONE, "yyyy-MM-dd");
+}
+
+function toDateKey(date: Date | string) {
+  if (typeof date === "string") {
+    return date.includes("T")
+      ? formatDateKey(new Date(date))
+      : date.slice(0, 10);
+  }
+
+  return formatDateKey(date);
+}
+
 export function getMonthKey(reference = new Date()) {
-  return formatInTimeZone(reference, IST_TIMEZONE, "yyyy-MM");
+  return getCurrentTimesheetMonthKey(reference);
 }
 
 export function getPreviousMonthKey(reference = new Date()) {
-  const zoned = toZonedTime(reference, IST_TIMEZONE);
-  return formatInTimeZone(addMonths(zoned, -1), IST_TIMEZONE, "yyyy-MM");
+  return getPreviousTimesheetMonthKey(getCurrentTimesheetMonthKey(reference));
 }
 
 export function getMonthLabel(monthKey: string) {
-  const start = getMonthStart(monthKey);
-  return formatInTimeZone(start, IST_TIMEZONE, "LLLL yyyy");
+  return formatTimesheetPeriodLabel(monthKey);
 }
 
 export function getMonthStart(monthKey: string) {
   return fromZonedTime(`${monthKey}-01T00:00:00`, IST_TIMEZONE);
+}
+
+export function getTimesheetPeriod(monthKey: string): TimesheetPeriod {
+  const { year, month } = parseMonthKey(monthKey);
+  const previousMonthAnchor = addMonths(new Date(Date.UTC(year, month - 1, 1)), -1);
+  const periodStartKey = `${previousMonthAnchor.getUTCFullYear()}-${pad(
+    previousMonthAnchor.getUTCMonth() + 1,
+  )}-${pad(TIMESHEET_PERIOD_BOUNDARY_DAY)}`;
+  const periodEndKey = `${year}-${pad(month)}-${pad(TIMESHEET_PERIOD_BOUNDARY_DAY)}`;
+  const autoSubmitKey = `${year}-${pad(month)}-${pad(FIXED_AUTO_SUBMIT_DAY)}`;
+  const periodEndExclusive = fromZonedTime(`${periodEndKey}T00:00:00`, IST_TIMEZONE);
+
+  return {
+    monthKey,
+    labelYear: year,
+    labelMonth: month,
+    periodStart: fromZonedTime(`${periodStartKey}T00:00:00`, IST_TIMEZONE),
+    periodEndExclusive,
+    visiblePeriodEnd: new Date(periodEndExclusive.getTime() - 24 * 60 * 60 * 1000),
+    autoSubmitAt: fromZonedTime(`${autoSubmitKey}T00:00:00`, IST_TIMEZONE),
+  };
+}
+
+export function getTimesheetPeriodDates(monthKey: string) {
+  const period = getTimesheetPeriod(monthKey);
+  const dates: string[] = [];
+  let cursor = new Date(period.periodStart);
+
+  while (cursor < period.periodEndExclusive) {
+    dates.push(formatDateKey(cursor));
+    cursor = new Date(cursor.getTime() + 24 * 60 * 60 * 1000);
+  }
+
+  return dates;
+}
+
+export function isDateInTimesheetPeriod(date: Date | string, monthKey: string) {
+  const dateKey = toDateKey(date);
+  const period = getTimesheetPeriod(monthKey);
+  const startKey = formatDateKey(period.periodStart);
+  const endKey = formatDateKey(period.periodEndExclusive);
+  return dateKey >= startKey && dateKey < endKey;
+}
+
+export function getTimesheetAutoSubmitAt(monthKey: string) {
+  return getTimesheetPeriod(monthKey).autoSubmitAt;
+}
+
+export function getCurrentTimesheetMonthKey(reference = new Date()) {
+  const parts = getIstParts(reference);
+  const labelMonth =
+    parts.day >= TIMESHEET_PERIOD_BOUNDARY_DAY
+      ? addMonths(new Date(Date.UTC(parts.year, parts.month - 1, 1)), 1)
+      : new Date(Date.UTC(parts.year, parts.month - 1, 1));
+
+  return `${labelMonth.getUTCFullYear()}-${pad(labelMonth.getUTCMonth() + 1)}`;
+}
+
+export function getPreviousTimesheetMonthKey(monthKey: string) {
+  const { year, month } = parseMonthKey(monthKey);
+  const previousMonth = addMonths(new Date(Date.UTC(year, month - 1, 1)), -1);
+  return `${previousMonth.getUTCFullYear()}-${pad(previousMonth.getUTCMonth() + 1)}`;
+}
+
+export function getAutoSubmitTargetMonthKey(reference = new Date()) {
+  return formatInTimeZone(reference, IST_TIMEZONE, "yyyy-MM");
+}
+
+export function formatTimesheetPeriodLabel(monthKey: string) {
+  const period = getTimesheetPeriod(monthKey);
+  const label = formatInTimeZone(getMonthStart(monthKey), IST_TIMEZONE, "LLLL yyyy");
+  const startLabel = formatInTimeZone(period.periodStart, IST_TIMEZONE, "d LLL");
+  const endLabel = formatInTimeZone(period.visiblePeriodEnd, IST_TIMEZONE, "d LLL");
+  return `${label} (${startLabel} - ${endLabel})`;
 }
 
 export function getMonthEnd(monthKey: string) {
@@ -97,7 +204,7 @@ export function isExactIstMidnight(reference = new Date()) {
 
 export function isExactAutoSubmitMoment(reference = new Date()) {
   const parts = getIstParts(reference);
-  return parts.day === 5 && isExactIstMidnight(reference);
+  return parts.day === FIXED_AUTO_SUBMIT_DAY && isExactIstMidnight(reference);
 }
 
 export function calculateWorkingDays(
@@ -106,13 +213,7 @@ export function calculateWorkingDays(
   exitDate: Date | null,
   holidays: string[],
 ) {
-  const [year, month] = monthKey.split("-").map(Number);
-  const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
   const holidaySet = new Set(holidays);
-
-  let startDay = 1;
-  let endDay = daysInMonth;
-
   const joinDateKey = joinDate
     ? formatInTimeZone(joinDate, IST_TIMEZONE, "yyyy-MM-dd")
     : null;
@@ -120,26 +221,17 @@ export function calculateWorkingDays(
     ? formatInTimeZone(exitDate, IST_TIMEZONE, "yyyy-MM-dd")
     : null;
 
-  if (joinDateKey?.startsWith(monthKey)) {
-    startDay = Number(joinDateKey.slice(-2));
-  }
-
-  if (exitDateKey?.startsWith(monthKey)) {
-    endDay = Number(exitDateKey.slice(-2));
-  }
-
-  if (joinDateKey && joinDateKey.slice(0, 7) > monthKey) {
-    return 0;
-  }
-
-  if (exitDateKey && exitDateKey.slice(0, 7) < monthKey) {
-    return 0;
-  }
-
   let workingDays = 0;
 
-  for (let day = startDay; day <= endDay; day += 1) {
-    const dateKey = `${year}-${pad(month)}-${pad(day)}`;
+  for (const dateKey of getTimesheetPeriodDates(monthKey)) {
+    if (
+      (joinDateKey && dateKey < joinDateKey) ||
+      (exitDateKey && dateKey > exitDateKey)
+    ) {
+      continue;
+    }
+
+    const [year, month, day] = dateKey.split("-").map(Number);
     const weekday = new Date(Date.UTC(year, month - 1, day)).getUTCDay();
     const isWeekend = weekday === 0 || weekday === 6;
 
@@ -152,28 +244,16 @@ export function calculateWorkingDays(
 }
 
 export function getDeadlineMetadata(monthKey: string) {
-  const [year, month] = monthKey.split("-").map(Number);
-  const nextMonthDate = new Date(Date.UTC(year, month - 1, 1));
-  const autoSubmitReference = addMonths(nextMonthDate, 1);
-  const autoSubmitDate = `${autoSubmitReference.getUTCFullYear()}-${pad(
-    autoSubmitReference.getUTCMonth() + 1,
-  )}-05`;
+  const period = getTimesheetPeriod(monthKey);
 
   return {
-    submissionDeadlineDate: getMonthEnd(monthKey),
-    autoSubmitDate,
+    submissionDeadlineDate: formatDateKey(period.visiblePeriodEnd),
+    autoSubmitDate: formatDateKey(period.autoSubmitAt),
   };
 }
 
 export function getOnTimeSubmissionCutoff(monthKey: string) {
-  const [year, month] = monthKey.split("-").map(Number);
-  const nextMonthDate = new Date(Date.UTC(year, month - 1, 1));
-  const cutoffReference = addMonths(nextMonthDate, 1);
-  const cutoffDate = `${cutoffReference.getUTCFullYear()}-${pad(
-    cutoffReference.getUTCMonth() + 1,
-  )}-05`;
-
-  return fromZonedTime(`${cutoffDate}T23:59:59.999`, IST_TIMEZONE);
+  return getTimesheetAutoSubmitAt(monthKey);
 }
 
 export function getReminderRun(
@@ -187,14 +267,23 @@ export function getReminderRun(
   const parts = getIstParts(reference);
   const currentMonthKey = getMonthKey(reference);
   const previousMonthKey = getPreviousMonthKey(reference);
-  const lastDay = Number(getMonthEnd(currentMonthKey).slice(-2));
+  const lastDay = Number(
+    formatDateKey(getTimesheetPeriod(currentMonthKey).visiblePeriodEnd).slice(-2),
+  );
   const [firstDraftReminderDay, secondDraftReminderDay] =
     reminderDays.currentMonthDraftDays.length > 0
       ? reminderDays.currentMonthDraftDays
       : DEFAULT_REMINDER_SCHEDULE.currentMonthDraftDays;
   const nextMonthReminderDay =
-    reminderDays.nextMonthPendingDays.find((day) => day !== 5) ??
+    reminderDays.nextMonthPendingDays.find((day) => day !== FIXED_AUTO_SUBMIT_DAY) ??
     DEFAULT_REMINDER_SCHEDULE.nextMonthPendingDays[0];
+
+  if (parts.day === FIXED_AUTO_SUBMIT_DAY) {
+    return {
+      kind: "FINAL_NOTICE_5TH",
+      targetMonthKey: getAutoSubmitTargetMonthKey(reference),
+    };
+  }
 
   if (parts.day === firstDraftReminderDay) {
     return { kind: "REMINDER_25TH", targetMonthKey: currentMonthKey };
@@ -212,18 +301,16 @@ export function getReminderRun(
     return { kind: "REMINDER_3RD", targetMonthKey: previousMonthKey };
   }
 
-  if (parts.day === 5) {
-    return { kind: "FINAL_NOTICE_5TH", targetMonthKey: previousMonthKey };
-  }
-
   return null;
 }
 
 export function getDaysRemainingInMonth(reference = new Date()) {
   const parts = getIstParts(reference);
   const monthKey = getMonthKey(reference);
-  const lastDay = Number(getMonthEnd(monthKey).slice(-2));
-  return lastDay - parts.day;
+  const lastDay = Number(
+    formatDateKey(getTimesheetPeriod(monthKey).visiblePeriodEnd).slice(-2),
+  );
+  return Math.max(0, lastDay - parts.day);
 }
 
 export function addWorkingDaysFromNextBusinessDay(

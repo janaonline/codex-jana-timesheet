@@ -61,7 +61,7 @@ describe("report service", () => {
       .mockResolvedValueOnce([
         {
           monthKey: "2026-03",
-          entries: [{ minutes: 720 }],
+          entries: [{ minutes: 720, workDate: new Date("2026-03-03T00:00:00+05:30") }],
         },
       ]);
 
@@ -94,6 +94,117 @@ describe("report service", () => {
         lastEditedVia: "WEEK",
         entryType: "Auto Generated",
       }),
+    ]);
+  });
+
+  it("queries selected-month entries with payroll-period boundaries", async () => {
+    prismaMock.timesheet.findMany
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([]);
+
+    await getHoursUtilizationReport("2026-05");
+
+    expect(prismaMock.timesheet.findMany.mock.calls[0][0]).toMatchObject({
+      where: {
+        monthKey: "2026-05",
+      },
+      include: {
+        entries: {
+          where: {
+            workDate: {
+              gte: new Date("2026-04-20T00:00:00+05:30"),
+              lt: new Date("2026-05-20T00:00:00+05:30"),
+            },
+          },
+        },
+      },
+    });
+  });
+
+  it("summarizes only entries inside the selected payroll period", async () => {
+    prismaMock.timesheet.findMany
+      .mockResolvedValueOnce([
+        {
+          monthKey: "2026-05",
+          assignedMinutes: 960,
+          user: {
+            name: "Ravi Director",
+            role: "PROGRAM_HEAD",
+          },
+          entries: [
+            {
+              minutes: 120,
+              workDate: new Date("2026-04-20T00:00:00+05:30"),
+              createdVia: "DAY",
+              lastEditedVia: "DAY",
+              project: {
+                name: "Water Program",
+              },
+            },
+            {
+              minutes: 180,
+              workDate: new Date("2026-05-19T00:00:00+05:30"),
+              createdVia: "DAY",
+              lastEditedVia: "DAY",
+              project: {
+                name: "Water Program",
+              },
+            },
+            {
+              minutes: 240,
+              workDate: new Date("2026-05-20T00:00:00+05:30"),
+              createdVia: "DAY",
+              lastEditedVia: "DAY",
+              project: {
+                name: "Water Program",
+              },
+            },
+          ],
+        },
+      ])
+      .mockResolvedValueOnce([]);
+
+    const may = await getHoursUtilizationReport("2026-05");
+
+    expect(may.totalsByDirector).toEqual([
+      {
+        directorName: "Ravi Director",
+        totalHours: 5,
+      },
+    ]);
+    expect(may.entryDetails.map((entry) => entry.hours)).toEqual([2, 3]);
+
+    prismaMock.timesheet.findMany
+      .mockResolvedValueOnce([
+        {
+          monthKey: "2026-06",
+          assignedMinutes: 960,
+          user: {
+            name: "Ravi Director",
+            role: "PROGRAM_HEAD",
+          },
+          entries: [
+            {
+              minutes: 240,
+              workDate: new Date("2026-05-20T00:00:00+05:30"),
+              createdVia: "DAY",
+              lastEditedVia: "DAY",
+              project: {
+                name: "Water Program",
+              },
+            },
+          ],
+        },
+      ])
+      .mockResolvedValueOnce([]);
+
+    const june = await getHoursUtilizationReport("2026-06");
+
+    expect(june.totalsByDirector).toEqual([
+      {
+        directorName: "Ravi Director",
+        totalHours: 4,
+      },
     ]);
   });
 
@@ -210,19 +321,19 @@ describe("report service", () => {
       expect.objectContaining({
         requesterName: "Ravi Director",
         status: "APPROVED",
-        monthLabel: "February 2026",
+        monthLabel: "February 2026 (20 Jan - 19 Feb)",
         completionPercentage: 50,
       }),
       expect.objectContaining({
         requesterName: "Asha Associate Director",
         status: "REJECTED",
-        monthLabel: "January 2026",
+        monthLabel: "January 2026 (20 Dec - 19 Jan)",
         completionPercentage: 0,
       }),
       expect.objectContaining({
         requesterName: "Meera Director",
         status: "EXPIRED",
-        monthLabel: "December 2025",
+        monthLabel: "December 2025 (20 Nov - 19 Dec)",
         completionPercentage: 50,
       }),
     ]);
@@ -238,12 +349,12 @@ describe("report service", () => {
         {
           monthKey: "2026-02",
           status: "SUBMITTED",
-          submittedAt: new Date("2026-03-05T18:29:59.000Z"),
+          submittedAt: new Date("2026-02-24T18:29:59.000Z"),
         },
         {
           monthKey: "2026-02",
           status: "AUTO_SUBMITTED",
-          submittedAt: new Date("2026-03-05T18:30:00.000Z"),
+          submittedAt: new Date("2026-02-24T18:30:01.000Z"),
         },
         {
           monthKey: "2026-02",
@@ -285,15 +396,15 @@ describe("report service", () => {
     });
 
     expect(overview.selectedMonthKey).toBe("2026-02");
-    expect(overview.selectedMonthLabel).toBe("February 2026");
+    expect(overview.selectedMonthLabel).toBe("February 2026 (20 Jan - 19 Feb)");
     expect(overview.availableMonths).toEqual([
       {
         monthKey: "2026-03",
-        monthLabel: "March 2026",
+        monthLabel: "March 2026 (20 Feb - 19 Mar)",
       },
       {
         monthKey: "2026-02",
-        monthLabel: "February 2026",
+        monthLabel: "February 2026 (20 Jan - 19 Feb)",
       },
     ]);
     expect(overview.summary).toEqual({

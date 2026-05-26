@@ -220,8 +220,8 @@ describe("timesheet calendar updates", () => {
         where: { id: existing.id },
         data: expect.objectContaining({
           version: { increment: 1 },
-          assignedMinutes: 10080,
-          assignedHours: 168,
+          assignedMinutes: 9120,
+          assignedHours: 152,
         }),
       }),
     );
@@ -240,7 +240,7 @@ describe("timesheet calendar updates", () => {
     });
     expect(result.timesheet.version).toBe(5);
     expect(result.timesheet.totalMinutes).toBe(180);
-    expect(result.timesheet.assignedMinutes).toBe(10080);
+    expect(result.timesheet.assignedMinutes).toBe(9120);
     expect(
       result.timesheet.calendarDays.find((day) => day.workDate === "2026-03-03"),
     ).toMatchObject({
@@ -305,6 +305,6 @@ describe("timesheet calendar updates", () => {
 
     expect(txMock.timesheetEntry.deleteMany).not.toHaveBeenCalled();
     expect(result.timesheet.totalMinutes).toBe(180);
-    expect(result.timesheet.assignedMinutes).toBe(10080);
+    expect(result.timesheet.assignedMinutes).toBe(9120);
   });
 });

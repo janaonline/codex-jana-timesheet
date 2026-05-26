@@ -39,9 +39,8 @@ export default async function DashboardPage() {
               {dashboard.currentTimesheet.monthLabel}
             </h2>
             <p className="mt-3 max-w-2xl text-sm leading-6 text-(--color-text-muted)">
-              Track daily contributions, keep the draft complete, and make sure the
-              previous month is manually submitted before the 5th cutoff if it is not
-              eligible for auto-submit.
+              Track daily contributions, keep the active payroll period complete, and
+              submit before the 25th cutoff if it is not eligible for auto-submit.
             </p>
           </div>
           <div className="grid w-full gap-3 sm:w-auto sm:grid-cols-2">
@@ -49,14 +48,14 @@ export default async function DashboardPage() {
               href={`/timesheets/${dashboard.currentTimesheet.id}`}
               loaderMessage="Loading current timesheet..."
             >
-              <Button className="w-full">Open current month</Button>
+              <Button className="w-full">Open current period</Button>
             </GlobalLoaderLink>
             <GlobalLoaderLink
               href={`/timesheets/${dashboard.previousTimesheet.id}`}
               loaderMessage="Loading previous timesheet..."
             >
               <Button className="w-full" variant="secondary">
-                Open previous month
+                Open prior period
               </Button>
             </GlobalLoaderLink>
           </div>
@@ -72,7 +71,7 @@ export default async function DashboardPage() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-xs uppercase tracking-[0.24em] text-(--color-text-muted)">
-                Current month progress
+                Current period progress
               </p>
               <p className="mt-2 text-3xl font-semibold text-(--color-text)">
                 {dashboard.currentTimesheet.totalHours} / {dashboard.currentTimesheet.assignedHours} hours
@@ -90,7 +89,7 @@ export default async function DashboardPage() {
 
         <Card className="space-y-4">
           <p className="text-xs uppercase tracking-[0.24em] text-(--color-text-muted)">
-            Previous month status
+            Prior period status
           </p>
           <Badge tone={dashboard.previousTimesheet.status}>
             {dashboard.previousTimesheet.status.replaceAll("_", " ")}
@@ -103,7 +102,7 @@ export default async function DashboardPage() {
             href={`/timesheets/${dashboard.previousTimesheet.id}`}
             loaderMessage="Loading previous timesheet..."
           >
-            <Button variant="secondary">View previous month</Button>
+            <Button variant="secondary">View prior period</Button>
           </GlobalLoaderLink>
         </Card>
       </div>
