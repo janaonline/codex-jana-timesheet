@@ -1,7 +1,12 @@
 import { AppError } from "@/lib/errors";
 import { TIMESHEET_OWNER_ROLES } from "@/lib/constants";
 import { prisma } from "@/lib/prisma";
-import { getDaysRemainingInMonth, getReminderRun, isExactAutoSubmitMoment } from "@/lib/time";
+import {
+  getDaysRemainingInMonth,
+  getReminderRun,
+  getTimesheetAutoSubmitAt,
+  isExactAutoSubmitMoment,
+} from "@/lib/time";
 import {
   isEligibleForAutoSubmit,
   isEligibleForReminder,
@@ -42,12 +47,20 @@ async function freezeIncompleteTimesheet(timesheetId: string, reference: Date) {
   return updated;
 }
 
+function getDaysUntilAutoSubmit(reference: Date, monthKey: string) {
+  const cutoff = getTimesheetAutoSubmitAt(monthKey);
+  return Math.max(
+    0,
+    Math.ceil((cutoff.getTime() - reference.getTime()) / (24 * 60 * 60 * 1000)),
+  );
+}
+
 export async function runAutoSubmitJob(reference = new Date()) {
   if (!isExactAutoSubmitMoment(reference)) {
     throw new AppError(
       "INVALID_RUN_WINDOW",
       400,
-      "Auto-submit may only run at 12:00 AM IST on the 5th.",
+      "Auto-submit may only run at 12:00 AM IST on the 25th.",
     );
   }
 
@@ -208,7 +221,9 @@ export async function runReminderJob(reference = new Date()) {
 
     const emailContext = await getTimesheetEmailContext(view.id, reference);
     const daysRemaining =
-      schedule.kind === "REMINDER_3RD" ? 2 : getDaysRemainingInMonth(reference);
+      schedule.kind === "REMINDER_3RD"
+        ? getDaysUntilAutoSubmit(reference, view.monthKey)
+        : getDaysRemainingInMonth(reference);
 
     await sendReminderMessage({
       kind: schedule.kind,

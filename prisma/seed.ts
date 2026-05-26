@@ -1,7 +1,12 @@
 import { PrismaClient } from "@prisma/client";
 
 import { hashPassword } from "../lib/password-auth";
-import { getMonthStart, getPreviousMonthKey, getMonthKey } from "../lib/time";
+import {
+  getMonthStart,
+  getPreviousMonthKey,
+  getMonthKey,
+  getTimesheetPeriodDates,
+} from "../lib/time";
 import {
   calculateAssignedHours,
   deriveLegacyDayStates,
@@ -182,20 +187,26 @@ function buildDailyEntries(
   }
 
   let remainingMinutes = normalizedTotal.minutes;
-  let day = 1;
+  let dateCursor = 0;
   let projectCursor = 0;
+  const workingDates = getTimesheetPeriodDates(monthKey).filter((workDate) => {
+    const [year, month, day] = workDate.split("-").map(Number);
+    const weekday = new Date(Date.UTC(year, month - 1, day)).getUTCDay();
+    return weekday !== 0 && weekday !== 6;
+  });
 
-  while (remainingMinutes > 0) {
+  while (remainingMinutes > 0 && workingDates[dateCursor]) {
     const sliceMinutes = remainingMinutes >= 480 ? 480 : remainingMinutes;
+    const workDate = workingDates[dateCursor];
     entries.push({
-      workDate: new Date(`${monthKey}-${String(day).padStart(2, "0")}T00:00:00+05:30`),
+      workDate: new Date(`${workDate}T00:00:00+05:30`),
       projectId: projectIds[projectCursor % projectIds.length],
       minutes: sliceMinutes,
       hours: minutesToHours(sliceMinutes),
       description: `Program delivery and leadership support for ${monthKey}`,
     });
     remainingMinutes -= sliceMinutes;
-    day += 1;
+    dateCursor += 1;
     projectCursor += 1;
   }
 
@@ -332,11 +343,11 @@ async function main() {
     where: { id: "default" },
     update: {
       reminderDays: {
-        currentMonthDraftDays: [25, 28],
+        currentMonthDraftDays: [15, 18],
         currentMonthSubmitDay: "last-day",
-        nextMonthPendingDays: [3],
+        nextMonthPendingDays: [22, 24],
       },
-      autoSubmitDay: 5,
+      autoSubmitDay: 25,
       completionThreshold: 100,
       inactivityTimeoutMins: 30,
       supportContactEmail: "support@janaagraha.org",
@@ -348,11 +359,11 @@ async function main() {
     create: {
       id: "default",
       reminderDays: {
-        currentMonthDraftDays: [25, 28],
+        currentMonthDraftDays: [15, 18],
         currentMonthSubmitDay: "last-day",
-        nextMonthPendingDays: [3],
+        nextMonthPendingDays: [22, 24],
       },
-      autoSubmitDay: 5,
+      autoSubmitDay: 25,
       completionThreshold: 100,
       inactivityTimeoutMins: 30,
       holidayCalendar: [],

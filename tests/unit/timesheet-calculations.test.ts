@@ -2,6 +2,7 @@ import {
   calculateAssignedHours,
   deriveLegacyDayStates,
   distributeMinutesEvenly,
+  listWeekdaysForWeekInMonth,
   minutesToHours,
   normalizeHoursInputToMinutes,
   validateTimesheetInput,
@@ -13,7 +14,7 @@ describe("timesheet calculations", () => {
       monthKey: "2026-03",
       joinDate: null,
       exitDate: null,
-      holidays: ["2026-03-20"],
+      holidays: ["2026-03-18"],
       dayStates: [
         {
           workDate: "2026-03-05",
@@ -42,11 +43,12 @@ describe("timesheet calculations", () => {
     expect(calendarDayMap.get("2026-03-05")?.capacityMinutes).toBe(0);
     expect(calendarDayMap.get("2026-03-06")?.capacityMinutes).toBe(240);
     expect(calendarDayMap.get("2026-03-09")?.capacityMinutes).toBe(0);
-    expect(calendarDayMap.get("2026-03-20")?.capacityMinutes).toBe(0);
-    expect(result.workingDaysCount).toBe(21);
+    expect(calendarDayMap.get("2026-03-18")?.capacityMinutes).toBe(0);
+    expect(calendarDayMap.has("2026-03-20")).toBe(false);
+    expect(result.workingDaysCount).toBe(19);
     expect(result.leaveDays).toBe(1.5);
-    expect(result.assignedMinutes).toBe(8880);
-    expect(result.assignedHours).toBe(148);
+    expect(result.assignedMinutes).toBe(7920);
+    expect(result.assignedHours).toBe(132);
   });
 
   it("restores full capacity when a holiday is switched back to a working day", () => {
@@ -74,8 +76,8 @@ describe("timesheet calculations", () => {
       legacyLeaveDays: 0,
     });
 
-    expect(withHoliday.assignedMinutes).toBe(10080);
-    expect(withoutHoliday.assignedMinutes).toBe(10560);
+    expect(withHoliday.assignedMinutes).toBe(9120);
+    expect(withoutHoliday.assignedMinutes).toBe(9600);
     expect(withoutHoliday.assignedMinutes - withHoliday.assignedMinutes).toBe(480);
   });
 
@@ -106,12 +108,12 @@ describe("timesheet calculations", () => {
 
     expect(result).toEqual([
       {
-        workDate: "2026-03-02",
+        workDate: "2026-02-20",
         leaveType: "FULL_DAY",
         isManualHoliday: false,
       },
       {
-        workDate: "2026-03-03",
+        workDate: "2026-02-23",
         leaveType: "HALF_DAY",
         isManualHoliday: false,
       },
@@ -171,6 +173,113 @@ describe("timesheet calculations", () => {
     );
   });
 
+  it("validates entries against the payroll-aligned period boundaries", () => {
+    const mayCapacity = calculateAssignedHours({
+      monthKey: "2026-05",
+      joinDate: null,
+      exitDate: null,
+      holidays: [],
+      dayStates: [],
+      legacyLeaveDays: 0,
+    });
+    const juneCapacity = calculateAssignedHours({
+      monthKey: "2026-06",
+      joinDate: null,
+      exitDate: null,
+      holidays: [],
+      dayStates: [],
+      legacyLeaveDays: 0,
+    });
+
+    expect(
+      validateTimesheetInput({
+        mode: "draft",
+        assignedMinutes: mayCapacity.assignedMinutes,
+        calendarDays: mayCapacity.calendarDays,
+        entries: [
+          {
+            workDate: "2026-04-20",
+            projectId: "project-1",
+            minutes: 60,
+            description: "",
+          },
+          {
+            workDate: "2026-05-19",
+            projectId: "project-1",
+            minutes: 60,
+            description: "",
+          },
+        ],
+      }).errors,
+    ).toEqual([]);
+
+    expect(
+      validateTimesheetInput({
+        mode: "draft",
+        assignedMinutes: mayCapacity.assignedMinutes,
+        calendarDays: mayCapacity.calendarDays,
+        entries: [
+          {
+            workDate: "2026-04-19",
+            projectId: "project-1",
+            minutes: 60,
+            description: "",
+          },
+          {
+            workDate: "2026-05-20",
+            projectId: "project-1",
+            minutes: 60,
+            description: "",
+          },
+        ],
+      }).errors,
+    ).toEqual([
+      "Entry 1: date must belong to the selected timesheet period.",
+      "Entry 2: date must belong to the selected timesheet period.",
+    ]);
+
+    expect(
+      validateTimesheetInput({
+        mode: "draft",
+        assignedMinutes: juneCapacity.assignedMinutes,
+        calendarDays: juneCapacity.calendarDays,
+        entries: [
+          {
+            workDate: "2026-05-20",
+            projectId: "project-1",
+            minutes: 60,
+            description: "",
+          },
+        ],
+      }).errors,
+    ).toEqual([]);
+  });
+
+  it("applies join and exit dates inside the payroll-aligned period", () => {
+    const result = calculateAssignedHours({
+      monthKey: "2026-05",
+      joinDate: new Date("2026-04-27T00:00:00+05:30"),
+      exitDate: new Date("2026-05-08T00:00:00+05:30"),
+      holidays: [],
+      dayStates: [],
+      legacyLeaveDays: 0,
+    });
+
+    expect(result.calendarDays.find((day) => day.workDate === "2026-04-25")).toMatchObject({
+      isWithinEmploymentWindow: false,
+      baseCapacityMinutes: 0,
+    });
+    expect(result.calendarDays.find((day) => day.workDate === "2026-04-27")).toMatchObject({
+      isWithinEmploymentWindow: true,
+      baseCapacityMinutes: 480,
+    });
+    expect(result.calendarDays.find((day) => day.workDate === "2026-05-11")).toMatchObject({
+      isWithinEmploymentWindow: false,
+      baseCapacityMinutes: 0,
+    });
+    expect(result.assignedMinutes).toBe(4800);
+  });
+
   it("distributes minutes evenly with earliest-date remainder handling", () => {
     const distribution = distributeMinutesEvenly({
       totalMinutes: 500,
@@ -206,6 +315,20 @@ describe("timesheet calculations", () => {
     expect(distribution).toEqual([
       { workDate: "2026-03-04", minutes: 240 },
       { workDate: "2026-03-05", minutes: 240 },
+    ]);
+  });
+
+  it("builds week allocation dates from the period start without crossing the period end", () => {
+    expect(listWeekdaysForWeekInMonth("2026-04-20", "2026-05")).toEqual([
+      "2026-04-20",
+      "2026-04-21",
+      "2026-04-22",
+      "2026-04-23",
+      "2026-04-24",
+    ]);
+    expect(listWeekdaysForWeekInMonth("2026-05-18", "2026-05")).toEqual([
+      "2026-05-18",
+      "2026-05-19",
     ]);
   });
 });

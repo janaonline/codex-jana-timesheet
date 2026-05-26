@@ -55,6 +55,7 @@ Background jobs: auto-submit and freeze run at 0 0 * * * Asia/Kolkata; triggered
 Job endpoints accept JWT session or x-job-secret header
 Business rules to know:
 
+Timesheet periods are payroll-aligned: `YYYY-MM` covers the previous month's 20th inclusive through the labelled month's 20th exclusive. Example: `2026-05` covers 20 Apr 2026 through 19 May 2026 and auto-submit runs on 25 May 2026 at 00:00 IST.
 Time resolution: 10-minute increments
 Submission requires totalMinutes === assignedMinutes exactly
 Three allocation modes: day (source of truth), week, month

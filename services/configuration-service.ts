@@ -3,6 +3,7 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import {
   DEFAULT_REMINDER_SCHEDULE,
+  FIXED_AUTO_SUBMIT_DAY,
   DEFAULT_ROLE_ACCESS,
   type Permission,
   type UserRole,
@@ -51,7 +52,7 @@ const DEFAULT_CONFIGURATION: SystemConfigurationView = {
     currentMonthSubmitDay: DEFAULT_REMINDER_SCHEDULE.currentMonthSubmitDay,
     nextMonthPendingDays: [...DEFAULT_REMINDER_SCHEDULE.nextMonthPendingDays],
   },
-  autoSubmitDay: 5,
+  autoSubmitDay: FIXED_AUTO_SUBMIT_DAY,
   completionThreshold: 100,
   inactivityTimeoutMins: 30,
   holidayCalendar: env.holidayCalendar,
@@ -131,7 +132,7 @@ function toSystemConfigurationView(record: {
   return {
     id: record.id,
     reminderDays: normalizeReminderDays(record.reminderDays),
-    autoSubmitDay: record.autoSubmitDay,
+    autoSubmitDay: FIXED_AUTO_SUBMIT_DAY,
     completionThreshold: record.completionThreshold,
     inactivityTimeoutMins: record.inactivityTimeoutMins,
     holidayCalendar: Array.isArray(record.holidayCalendar)
@@ -235,7 +236,7 @@ export async function updateSystemConfiguration(input: SystemConfigurationUpdate
     where: { id: current.id },
     data: {
       reminderDays: input.reminderDays ?? current.reminderDays,
-      autoSubmitDay: input.autoSubmitDay ?? current.autoSubmitDay,
+      autoSubmitDay: FIXED_AUTO_SUBMIT_DAY,
       completionThreshold: input.completionThreshold ?? current.completionThreshold,
       inactivityTimeoutMins:
         input.inactivityTimeoutMins ?? current.inactivityTimeoutMins,

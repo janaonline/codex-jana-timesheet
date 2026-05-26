@@ -43,7 +43,7 @@ export function ConfigurationPanel({
                 {config.autoSubmitDay}th
               </p>
               <p className="mt-2 leading-6 text-(--color-text-muted)">
-                Reserved by the approved workflow. This remains fixed at the 5th day,
+                Reserved by the approved workflow. This remains fixed at the 25th day,
                 12:00 AM IST.
               </p>
             </div>
@@ -94,7 +94,7 @@ export function ConfigurationPanel({
                 defaultValue={config.reminderDays.nextMonthPendingDays.join(",")}
               />
               <span className="mt-2 block text-xs leading-5 text-(--color-text-muted)">
-                The final 5th-day notice remains fixed by workflow and is not managed
+                The 25th-day auto-submit run remains fixed by workflow and is not managed
                 here.
               </span>
             </label>

@@ -37,7 +37,7 @@ export default async function ConfirmationPage({
         </Badge>
         <p className="text-sm leading-6 text-(--color-text-muted)">
           Submission confirmation email has been queued. The timesheet is now locked and can
-          only be reopened through the previous-month request edit workflow.
+          only be reopened through the prior-period request edit workflow.
         </p>
         <div className="grid gap-4 md:grid-cols-3">
           <Card>

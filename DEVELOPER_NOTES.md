@@ -56,6 +56,8 @@ When documentation and code disagree, use these files first:
 ### Timesheet Storage Model
 
 - `Timesheet` stores month-level state and cached capacity values.
+- `Timesheet.monthKey` remains a `YYYY-MM` label. Actual valid work dates are derived in [lib/time.ts](/d:/projects/codex-jana-timesheet/.git/codex-jana-timesheet/lib/time.ts): the previous month's 20th inclusive through the labelled month's 20th exclusive. Example: `2026-05` covers 20 Apr 2026 through 19 May 2026.
+- `Timesheet.monthStart` remains the first day of the labelled month for backward-compatible anchoring, not the payroll period start.
 - `TimesheetEntry` is the actual day-level source of recorded work.
 - `TimesheetDayState` stores per-date leave or manual-holiday state.
 - `leaveDays` is retained on `Timesheet`, but effective capacity is recalculated from day-state data whenever needed.
@@ -85,7 +87,7 @@ When documentation and code disagree, use these files first:
 
 - Cron schedule is hard-coded as `0 0 * * *` in `Asia/Kolkata`.
 - Every run expires approved edit windows first.
-- Only the exact 5th at `00:00 IST` is treated as the auto-submit window.
+- Only the exact 25th of the labelled month at `00:00 IST` is treated as the auto-submit window for that labelled period.
 - Reminder logic uses `SystemConfiguration.reminderDays`.
 - Auto-submit notices and final notices are sent through the email service and logged in `EmailLog`.
 
@@ -106,7 +108,7 @@ These are the main places where the codebase can surprise future maintainers.
   - it still mentions `LOCAL_AUTH_ENABLED`, which the current runtime does not read
   - it does not describe `AUTH_MODE`
   - it does not describe `DIRECT_URL`, even though Prisma schema references it
-- `SystemConfiguration.autoSubmitDay` exists and is editable in admin UI, but runtime cutoff logic is still hard-coded to the 5th in [lib/time.ts](/d:/projects/codex-jana-timesheet/.git/codex-jana-timesheet/lib/time.ts).
+- `SystemConfiguration.autoSubmitDay` exists in the schema, but runtime/display logic normalizes the cutoff to the fixed 25th in [lib/time.ts](/d:/projects/codex-jana-timesheet/.git/codex-jana-timesheet/lib/time.ts) and [services/configuration-service.ts](/d:/projects/codex-jana-timesheet/.git/codex-jana-timesheet/services/configuration-service.ts).
 - `SystemConfiguration.completionThreshold` exists and is editable, but submission and auto-submit still require exact minute equality rather than using that threshold.
 - `services/export-service.ts` accepts `"excel"` in its type union, but non-PDF exports are currently CSV output.
 - `canRequestEdit` is broader than `canEditTimesheet`:

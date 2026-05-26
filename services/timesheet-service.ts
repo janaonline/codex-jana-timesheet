@@ -23,6 +23,7 @@ import {
   getMonthLabel,
   getMonthStart,
   getPreviousMonthKey,
+  isDateInTimesheetPeriod,
   isCurrentMonth,
   isPastMonth,
   isPreviousMonth,
@@ -188,6 +189,13 @@ function toWorkDate(date: string) {
   return new Date(`${date}T00:00:00+05:30`);
 }
 
+function isEntryInTimesheetPeriod(
+  entry: Pick<TimesheetRecord["entries"][number], "workDate">,
+  monthKey: string,
+) {
+  return isDateInTimesheetPeriod(dateToIsoDate(entry.workDate), monthKey);
+}
+
 function resolveEntryMinutes(entry: { minutes: number; hours: number }) {
   if (entry.minutes > 0) {
     return entry.minutes;
@@ -232,7 +240,10 @@ function serializeTimesheet(
   reference = new Date(),
   viewerRole: UserRole = timesheet.user.role,
 ): TimesheetView {
-  const totalMinutes = timesheet.entries.reduce(
+  const periodEntries = timesheet.entries.filter((entry) =>
+    isEntryInTimesheetPeriod(entry, timesheet.monthKey),
+  );
+  const totalMinutes = periodEntries.reduce(
     (sum, entry) => sum + resolveEntryMinutes(entry),
     0,
   );
@@ -297,7 +308,7 @@ function serializeTimesheet(
     editWindowClosesAt: timesheet.editWindowClosesAt?.toISOString() ?? null,
     rejectionReason: timesheet.rejectionReason,
     deadlines: getDeadlineMetadata(timesheet.monthKey),
-    entries: timesheet.entries.map((entry) => {
+    entries: periodEntries.map((entry) => {
       const minutes = resolveEntryMinutes(entry);
       return {
         id: entry.id,
@@ -407,7 +418,7 @@ function resolveInitialTimesheetStatus(monthKey: string, reference: Date) {
 
   if (
     isPreviousMonth(monthKey, reference) &&
-    reference < new Date(`${getDeadlineMetadata(monthKey).autoSubmitDate}T00:00:00+05:30`)
+    reference <= new Date(`${getDeadlineMetadata(monthKey).autoSubmitDate}T00:00:00+05:30`)
   ) {
     return "DRAFT" as const;
   }
@@ -459,14 +470,16 @@ async function getAvailableProjects() {
 }
 
 function buildBreakdownHtml(timesheet: TimesheetRecord) {
-  const grouped = timesheet.entries.reduce<Record<string, number>>((accumulator, entry) => {
-    accumulator[entry.project.name] = Number(
-      (
-        (accumulator[entry.project.name] ?? 0) + minutesToHours(resolveEntryMinutes(entry))
-      ).toFixed(2),
-    );
-    return accumulator;
-  }, {});
+  const grouped = timesheet.entries
+    .filter((entry) => isEntryInTimesheetPeriod(entry, timesheet.monthKey))
+    .reduce<Record<string, number>>((accumulator, entry) => {
+      accumulator[entry.project.name] = Number(
+        (
+          (accumulator[entry.project.name] ?? 0) + minutesToHours(resolveEntryMinutes(entry))
+        ).toFixed(2),
+      );
+      return accumulator;
+    }, {});
 
   return `
     <table style="width: 100%; border-collapse: collapse;">
@@ -550,7 +563,7 @@ async function reconcileEntries(
   entries: DraftEntryInput[],
   mode: EntryOrigin,
 ) {
-  const existingEntries = await tx.timesheetEntry.findMany({
+  const existingEntries = (await tx.timesheetEntry.findMany({
     where: { timesheetId: timesheet.id },
     select: {
       id: true,
@@ -562,7 +575,7 @@ async function reconcileEntries(
       createdVia: true,
       lastEditedVia: true,
     },
-  });
+  })).filter((entry) => isEntryInTimesheetPeriod(entry, timesheet.monthKey));
 
   const existingIds = new Map(existingEntries.map((entry) => [entry.id, entry]));
   const incomingIds = new Set(entries.map((entry) => entry.id).filter(Boolean) as string[]);
@@ -587,11 +600,11 @@ async function reconcileEntries(
   let deletedCount = 0;
 
   for (const entry of entries) {
-    if (!entry.workDate.startsWith(timesheet.monthKey)) {
+    if (!isDateInTimesheetPeriod(entry.workDate, timesheet.monthKey)) {
       throw new AppError(
         "VALIDATION_ERROR",
         400,
-        "Entry dates must belong to the selected month.",
+        "Entry dates must belong to the selected timesheet period.",
       );
     }
 
@@ -863,7 +876,11 @@ async function applyGeneratedEntries(params: {
   })) satisfies DraftEntryInput[];
 
   const remainingEntries = params.timesheet.entries
-    .filter((entry) => !replacingEntryIds.has(entry.id))
+    .filter(
+      (entry) =>
+        isEntryInTimesheetPeriod(entry, params.timesheet.monthKey) &&
+        !replacingEntryIds.has(entry.id),
+    )
     .map((entry) => ({
       id: entry.id,
       workDate: dateToIsoDate(entry.workDate),
@@ -1013,7 +1030,7 @@ export async function createTimesheetForUser(
     throw new AppError(
       "INVALID_MONTH",
       400,
-      "Timesheets can only be opened for the current month or a past month.",
+      "Timesheets can only be opened for the current payroll period or an earlier period.",
     );
   }
 
@@ -1224,11 +1241,11 @@ export async function updateTimesheetCalendar(params: {
   );
 
   for (const update of params.updates) {
-    if (!update.workDate.startsWith(existing.monthKey)) {
+    if (!isDateInTimesheetPeriod(update.workDate, existing.monthKey)) {
       throw new AppError(
         "VALIDATION_ERROR",
         400,
-        "Calendar updates must belong to the selected month.",
+        "Calendar updates must belong to the selected timesheet period.",
       );
     }
 
@@ -1237,7 +1254,7 @@ export async function updateTimesheetCalendar(params: {
       throw new AppError(
         "VALIDATION_ERROR",
         400,
-        "Calendar updates must belong to the selected month.",
+        "Calendar updates must belong to the selected timesheet period.",
       );
     }
 
@@ -1295,7 +1312,11 @@ export async function updateTimesheetCalendar(params: {
     legacyLeaveDays: 0,
   });
   const currentEntries = existing.entries
-    .filter((entry) => !holidayClearDateSet.has(dateToIsoDate(entry.workDate)))
+    .filter(
+      (entry) =>
+        isEntryInTimesheetPeriod(entry, existing.monthKey) &&
+        !holidayClearDateSet.has(dateToIsoDate(entry.workDate)),
+    )
     .map((entry) => ({
       id: entry.id,
       workDate: dateToIsoDate(entry.workDate),
@@ -1515,15 +1536,17 @@ export async function submitTimesheet(params: {
     legacyLeaveDays: existing.leaveDays,
   });
   const validation = validateTimesheetInput({
-    entries: existing.entries.map((entry) => ({
-      id: entry.id,
-      workDate: dateToIsoDate(entry.workDate),
-      projectId: entry.projectId,
-      minutes: resolveEntryMinutes(entry),
-      description: entry.description,
-      createdVia: entry.createdVia,
-      lastEditedVia: entry.lastEditedVia,
-    })),
+    entries: existing.entries
+      .filter((entry) => isEntryInTimesheetPeriod(entry, existing.monthKey))
+      .map((entry) => ({
+        id: entry.id,
+        workDate: dateToIsoDate(entry.workDate),
+        projectId: entry.projectId,
+        minutes: resolveEntryMinutes(entry),
+        description: entry.description,
+        createdVia: entry.createdVia,
+        lastEditedVia: entry.lastEditedVia,
+      })),
     assignedMinutes: capacitySummary.assignedMinutes,
     calendarDays: capacitySummary.calendarDays,
     mode: "submit",
@@ -1985,11 +2008,11 @@ export async function getDashboardData(userId: string, reference = new Date()) {
     })),
     upcomingDeadlines: [
       {
-        label: "Current month submission deadline",
+        label: "Current period submission deadline",
         date: formatDisplayDate(currentWindow.currentTimesheet.deadlines.submissionDeadlineDate),
       },
       {
-        label: "Previous month auto-submit cutoff",
+        label: "Prior period auto-submit cutoff",
         date: formatDisplayDate(currentWindow.previousTimesheet.deadlines.autoSubmitDate),
       },
     ],
