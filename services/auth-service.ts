@@ -31,6 +31,7 @@ type AuthenticatedUser = {
   email: string;
   name: string;
   role: UserRole;
+  designation: string;
   azureGroups: string[];
   passwordSetupRequired: boolean;
 };
@@ -40,6 +41,7 @@ const userAuthSelect = {
   email: true,
   name: true,
   role: true,
+  designation: true,
   isActive: true,
   azureGroups: true,
   passwordHash: true,
@@ -71,6 +73,7 @@ function toAuthenticatedUser(
     email: user.email,
     name: user.name,
     role: user.role,
+    designation: user.designation,
     azureGroups: Array.isArray(user.azureGroups)
       ? (user.azureGroups as string[])
       : [],

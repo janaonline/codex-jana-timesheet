@@ -25,6 +25,7 @@ export default async function DashboardPage() {
   return (
     <PortalShell
       role={session.user.role}
+      designation={session.user.designation}
       permissions={session.user.permissions}
       userName={session.user.name ?? session.user.email ?? "Director"}
       currentPath="/dashboard"

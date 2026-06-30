@@ -7,6 +7,7 @@ import { Button } from "@/components/common/button";
 import { GlobalLoaderLink } from "@/components/common/global-loader-link";
 import { useGlobalLoader } from "@/components/common/global-loader-provider";
 import { ThemeToggle } from "@/components/common/theme-toggle";
+import { APP_NAME } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 import type { Permission, UserRole } from "@/lib/constants";
 
@@ -24,12 +25,14 @@ const navItems = [
 export function PortalShell({
   children,
   role,
+  designation,
   permissions,
   userName,
   currentPath,
 }: {
   children: React.ReactNode;
   role: UserRole;
+  designation: string;
   permissions: Permission[];
   userName: string;
   currentPath: string;
@@ -61,7 +64,7 @@ export function PortalShell({
                   Janaagraha
                 </p>
                 <h1 className="mt-2 text-2xl font-semibold text-(--color-text)">
-                  Directors Timesheet
+                  {APP_NAME}
                 </h1>
               </div>
               <ThemeToggle className="mt-1 shrink-0 lg:mt-2" />
@@ -79,7 +82,7 @@ export function PortalShell({
             <p className="text-xs uppercase tracking-[0.24em] text-(--color-text-muted)">Signed in as</p>
             <p className="mt-2 text-lg font-semibold text-(--color-text)">{userName}</p>
             <div className="mt-3">
-              <Badge tone={role}>{role.replaceAll("_", " ")}</Badge>
+              <Badge tone={role}>{designation}</Badge>
             </div>
           </div>
 

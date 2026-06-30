@@ -6,6 +6,7 @@ declare module "next-auth" {
   interface User {
     id: string;
     role: UserRole;
+    designation: string;
     passwordSetupRequired?: boolean;
     permissions?: Permission[];
     azureGroups?: string[];
@@ -15,6 +16,7 @@ declare module "next-auth" {
     user: DefaultSession["user"] & {
       id: string;
       role: UserRole;
+      designation: string;
       lastActivityAt: number;
       passwordSetupRequired: boolean;
       permissions: Permission[];
@@ -26,6 +28,7 @@ declare module "next-auth" {
 declare module "next-auth/jwt" {
   interface JWT {
     role?: UserRole;
+    designation?: string;
     lastActivityAt?: number;
     passwordSetupRequired?: boolean;
     permissions?: Permission[];

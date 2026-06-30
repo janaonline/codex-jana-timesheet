@@ -3,6 +3,7 @@ import { JetBrains_Mono, Manrope } from "next/font/google";
 
 import "./globals.css";
 import { Providers } from "@/app/providers";
+import { APP_NAME } from "@/lib/constants";
 
 const manrope = Manrope({
   variable: "--font-manrope",
@@ -15,8 +16,8 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Directors Timesheet Management System",
-  description: "Janaagraha internal portal for directors' timesheets.",
+  title: APP_NAME,
+  description: "Janaagraha internal portal for timesheets.",
 };
 
 // Reads localStorage / OS preference and sets class="dark" on <html> before
