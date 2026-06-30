@@ -25,12 +25,14 @@ const navItems = [
 export function PortalShell({
   children,
   role,
+  designation,
   permissions,
   userName,
   currentPath,
 }: {
   children: React.ReactNode;
   role: UserRole;
+  designation: string;
   permissions: Permission[];
   userName: string;
   currentPath: string;
@@ -80,7 +82,7 @@ export function PortalShell({
             <p className="text-xs uppercase tracking-[0.24em] text-(--color-text-muted)">Signed in as</p>
             <p className="mt-2 text-lg font-semibold text-(--color-text)">{userName}</p>
             <div className="mt-3">
-              <Badge tone={role}>{role.replaceAll("_", " ")}</Badge>
+              <Badge tone={role}>{designation}</Badge>
             </div>
           </div>
 

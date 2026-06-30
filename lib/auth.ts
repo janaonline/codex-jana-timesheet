@@ -142,6 +142,7 @@ async function syncUserProfile(profile: AzureProfile) {
     create: {
       email,
       name: profile.name ?? email,
+      designation: profile.name ?? email,
       azureAdId: profile.oid,
       azureGroups: groups,
       role,
@@ -305,6 +306,7 @@ export const authOptions: NextAuthOptions = {
         token.email = user.email;
         token.name = user.name;
         token.role = user.role;
+        token.designation = user.designation;
         token.passwordSetupRequired = Boolean(user.passwordSetupRequired);
         token.permissions = Array.isArray(user.permissions)
           ? user.permissions
@@ -330,6 +332,7 @@ export const authOptions: NextAuthOptions = {
           select: {
             id: true,
             role: true,
+            designation: true,
             azureGroups: true,
             passwordHash: true,
             passwordResetRequired: true,
@@ -339,6 +342,7 @@ export const authOptions: NextAuthOptions = {
         if (currentUser) {
           token.sub = currentUser.id;
           token.role = currentUser.role;
+          token.designation = currentUser.designation;
           token.azureGroups = Array.isArray(currentUser.azureGroups)
             ? (currentUser.azureGroups as string[])
             : [];
@@ -368,6 +372,8 @@ export const authOptions: NextAuthOptions = {
       if (session.user && token.sub && token.role) {
         session.user.id = token.sub;
         session.user.role = token.role;
+        session.user.designation =
+          typeof token.designation === "string" ? token.designation : "";
         session.user.lastActivityAt = token.lastActivityAt ?? Date.now();
         session.user.passwordSetupRequired = Boolean(token.passwordSetupRequired);
         session.user.permissions = Array.isArray(token.permissions)

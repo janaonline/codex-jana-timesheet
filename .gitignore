@@ -37,6 +37,12 @@ yarn-error.log*
 .codex-postgres-data/
 .login.html
 
+# local seed data with deployment passwords
+/prisma/seed.ts
+/prisma/seed.postgres.sql
+/prisma/seed.local.ts
+/prisma/*.seed.local.sql
+
 # vercel
 .vercel
 

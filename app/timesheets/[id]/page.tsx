@@ -19,6 +19,7 @@ export default async function TimesheetPage({
   return (
     <PortalShell
       role={session.user.role}
+      designation={session.user.designation}
       permissions={session.user.permissions}
       userName={session.user.name ?? session.user.email ?? "User"}
       currentPath={isTimesheetOwnerRole(session.user.role) ? "/dashboard" : "/admin/edit-requests"}
