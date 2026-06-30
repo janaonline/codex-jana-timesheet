@@ -1,5 +1,5 @@
 export const IST_TIMEZONE = "Asia/Kolkata";
-export const APP_NAME = "Directors Timesheet Management System";
+export const APP_NAME = "Timesheets";
 export const ORGANIZATION_NAME = "Janaagraha";
 export const API_VERSION_PREFIX = "/api/v1";
 export const AUTH_MODES = ["password", "azuread"] as const;

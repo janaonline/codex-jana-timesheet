@@ -10,6 +10,7 @@ import { Input } from "@/components/common/input";
 import { Modal } from "@/components/common/modal";
 import { ThemeToggle } from "@/components/common/theme-toggle";
 import {
+  APP_NAME,
   OTP_AUTH_PROVIDER_ID,
   PASSWORD_AUTH_PROVIDER_ID,
   type OtpPurpose,
@@ -372,7 +373,7 @@ export function LoginScreen({
           </div>
           <div className="space-y-4">
             <h1 className="max-w-2xl text-4xl font-semibold tracking-tight text-(--color-text) sm:text-5xl">
-              Directors Timesheet Management System
+              {APP_NAME}
             </h1>
             <p className="max-w-2xl text-base leading-7 text-(--color-text-muted) sm:text-lg">
               Monthly timesheets, reminders, controlled edit requests, and reporting in

@@ -1,4 +1,4 @@
-# Directors Timesheet Management System
+# Timesheets
 
 This repository contains a single Next.js application for managing internal timesheet capture, approvals, reminders, exports, and supporting admin operations.
 

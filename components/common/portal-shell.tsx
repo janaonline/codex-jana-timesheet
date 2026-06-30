@@ -7,6 +7,7 @@ import { Button } from "@/components/common/button";
 import { GlobalLoaderLink } from "@/components/common/global-loader-link";
 import { useGlobalLoader } from "@/components/common/global-loader-provider";
 import { ThemeToggle } from "@/components/common/theme-toggle";
+import { APP_NAME } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 import type { Permission, UserRole } from "@/lib/constants";
 
@@ -61,7 +62,7 @@ export function PortalShell({
                   Janaagraha
                 </p>
                 <h1 className="mt-2 text-2xl font-semibold text-(--color-text)">
-                  Directors Timesheet
+                  {APP_NAME}
                 </h1>
               </div>
               <ThemeToggle className="mt-1 shrink-0 lg:mt-2" />
