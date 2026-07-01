@@ -68,3 +68,31 @@ export function requireArray<T = unknown>(value: unknown, fieldName: string) {
 
   return value as T[];
 }
+
+export function requireEmail(value: unknown, fieldName: string): string {
+  const s = requireString(value, fieldName);
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s)) {
+    throw new AppError(
+      "VALIDATION_ERROR",
+      400,
+      `${fieldName} must be a valid email address.`,
+    );
+  }
+  return s;
+}
+
+export function requireEnum<T extends string>(
+  value: unknown,
+  fieldName: string,
+  allowed: readonly T[],
+): T {
+  const s = requireString(value, fieldName);
+  if (!allowed.includes(s as T)) {
+    throw new AppError(
+      "VALIDATION_ERROR",
+      400,
+      `${fieldName} must be one of: ${allowed.join(", ")}.`,
+    );
+  }
+  return s as T;
+}

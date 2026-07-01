@@ -1,0 +1,202 @@
+{
+  "info": {
+    "name": "User & Project CRUD",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_postman_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3000",
+      "type": "string"
+    },
+    {
+      "key": "apiKey",
+      "value": "your-crud-api-key-here",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "Users",
+      "item": [
+        {
+          "name": "Create User",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{apiKey}}" }
+            ],
+            "url": { "raw": "{{baseUrl}}/api/v1/users", "host": ["{{baseUrl}}"], "path": ["api", "v1", "users"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"alice@example.org\",\n  \"name\": \"Alice Kumar\",\n  \"role\": \"PROGRAM_HEAD\",\n  \"designation\": \"Senior Program Officer\",\n  \"isActive\": true,\n  \"approverUserId\": null,\n  \"joinDate\": \"2024-03-01\"\n}"
+            }
+          }
+        },
+        {
+          "name": "List Users",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{apiKey}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/users?isActive=true&page=1&pageSize=25",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "users"],
+              "query": [
+                { "key": "isActive", "value": "true" },
+                { "key": "search", "value": "", "disabled": true },
+                { "key": "role", "value": "", "disabled": true },
+                { "key": "page", "value": "1" },
+                { "key": "pageSize", "value": "25" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get User by ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{apiKey}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/users/:id",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "users", ":id"],
+              "variable": [{ "key": "id", "value": "REPLACE_WITH_USER_ID" }]
+            }
+          }
+        },
+        {
+          "name": "Update User",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{apiKey}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/users/:id",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "users", ":id"],
+              "variable": [{ "key": "id", "value": "REPLACE_WITH_USER_ID" }]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Alice Kumar Sharma\",\n  \"designation\": \"Lead Program Officer\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Soft Delete User",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{apiKey}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/users/:id",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "users", ":id"],
+              "variable": [{ "key": "id", "value": "REPLACE_WITH_USER_ID" }]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Projects",
+      "item": [
+        {
+          "name": "Create Project",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{apiKey}}" }
+            ],
+            "url": { "raw": "{{baseUrl}}/api/v1/projects", "host": ["{{baseUrl}}"], "path": ["api", "v1", "projects"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"code\": \"PROJ-WATER-2024\",\n  \"name\": \"Urban Water Access 2024\",\n  \"description\": \"WASH programme for urban slums\",\n  \"isActive\": true\n}"
+            }
+          }
+        },
+        {
+          "name": "List Projects",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{apiKey}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/projects?isActive=true&page=1&pageSize=25",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "projects"],
+              "query": [
+                { "key": "isActive", "value": "true" },
+                { "key": "search", "value": "", "disabled": true },
+                { "key": "page", "value": "1" },
+                { "key": "pageSize", "value": "25" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Project by ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{apiKey}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/projects/:id",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "projects", ":id"],
+              "variable": [{ "key": "id", "value": "REPLACE_WITH_PROJECT_ID" }]
+            }
+          }
+        },
+        {
+          "name": "Update Project",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{apiKey}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/projects/:id",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "projects", ":id"],
+              "variable": [{ "key": "id", "value": "REPLACE_WITH_PROJECT_ID" }]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Urban Water Access Programme 2024\",\n  \"isActive\": true\n}"
+            }
+          }
+        },
+        {
+          "name": "Soft Delete Project",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{apiKey}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/projects/:id",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "projects", ":id"],
+              "variable": [{ "key": "id", "value": "REPLACE_WITH_PROJECT_ID" }]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
