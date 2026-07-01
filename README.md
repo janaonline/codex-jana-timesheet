@@ -123,8 +123,11 @@ Role permissions come from the default matrix in [lib/constants.ts](/d:/projects
 
 - Auth setup: [lib/auth.ts](/d:/projects/codex-jana-timesheet/.git/codex-jana-timesheet/lib/auth.ts)
 - Environment parsing: [lib/env.ts](/d:/projects/codex-jana-timesheet/.git/codex-jana-timesheet/lib/env.ts)
+- Request validation: [lib/validators.ts](/d:/projects/codex-jana-timesheet/.git/codex-jana-timesheet/lib/validators.ts)
+- CRUD API key auth: [lib/crud-auth.ts](/d:/projects/codex-jana-timesheet/.git/codex-jana-timesheet/lib/crud-auth.ts)
 - Timesheet rules: [lib/timesheet-calculations.ts](/d:/projects/codex-jana-timesheet/.git/codex-jana-timesheet/lib/timesheet-calculations.ts), [lib/workflow-rules.ts](/d:/projects/codex-jana-timesheet/.git/codex-jana-timesheet/lib/workflow-rules.ts), [lib/time.ts](/d:/projects/codex-jana-timesheet/.git/codex-jana-timesheet/lib/time.ts)
 - Core workflow service: [services/timesheet-service.ts](/d:/projects/codex-jana-timesheet/.git/codex-jana-timesheet/services/timesheet-service.ts)
+- User and project management: [services/user-service.ts](/d:/projects/codex-jana-timesheet/.git/codex-jana-timesheet/services/user-service.ts), [services/project-service.ts](/d:/projects/codex-jana-timesheet/.git/codex-jana-timesheet/services/project-service.ts)
 - Jobs and scheduler: [services/job-service.ts](/d:/projects/codex-jana-timesheet/.git/codex-jana-timesheet/services/job-service.ts), [services/scheduler-service.ts](/d:/projects/codex-jana-timesheet/.git/codex-jana-timesheet/services/scheduler-service.ts), [instrumentation.ts](/d:/projects/codex-jana-timesheet/.git/codex-jana-timesheet/instrumentation.ts)
 - Reports and exports: [services/report-service.ts](/d:/projects/codex-jana-timesheet/.git/codex-jana-timesheet/services/report-service.ts), [services/export-service.ts](/d:/projects/codex-jana-timesheet/.git/codex-jana-timesheet/services/export-service.ts)
 - Data model: [prisma/schema.prisma](/d:/projects/codex-jana-timesheet/.git/codex-jana-timesheet/prisma/schema.prisma)
@@ -157,6 +160,7 @@ Core variables:
 - `APP_BASE_URL`
 - `CRON_JOB_SHARED_SECRET`
 - `ENABLE_SCHEDULER`
+- `CRUD_API_KEY`
 - `SUPPORT_CONTACT_EMAIL`
 - `HOLIDAY_CALENDAR_JSON`
 - `OBSERVABILITY_WEBHOOK_URL`
@@ -179,6 +183,7 @@ Conditional variables:
 Notes:
 
 - `AUTH_MODE=password` is the default behavior in code.
+- `CRUD_API_KEY` enables the user and project management REST API (`/api/v1/users`, `/api/v1/projects`). If unset, those endpoints always return `401`. The key is passed as `Authorization: Bearer <value>`.
 - If SMTP is not configured, workflow actions still complete but email logs are recorded as failed.
 - Avoid copying values from local env files into documentation, tickets, or screenshots.
 
@@ -293,6 +298,21 @@ Authenticated app endpoints:
 - `POST /api/v1/reports/export`
 - `GET /api/health`
 
+CRUD management endpoints (require `Authorization: Bearer <CRUD_API_KEY>`):
+
+- `GET /api/v1/users` — list users (filters: `role`, `isActive`, `search`, `page`, `pageSize`)
+- `POST /api/v1/users` — create user
+- `GET /api/v1/users/[id]` — get user by id
+- `PATCH /api/v1/users/[id]` — partial update user (auth/credential fields are blocked)
+- `DELETE /api/v1/users/[id]` — soft-delete user (sets `isActive=false`)
+- `GET /api/v1/projects` — list projects (filters: `isActive`, `search`, `page`, `pageSize`)
+- `POST /api/v1/projects` — create project
+- `GET /api/v1/projects/[id]` — get project by id
+- `PATCH /api/v1/projects/[id]` — partial update project
+- `DELETE /api/v1/projects/[id]` — soft-delete project (sets `isActive=false`)
+
+Full request/response reference: [docs/API_USER_PROJECT_CRUD.md](docs/API_USER_PROJECT_CRUD.md)
+
 ## Testing
 
 Primary commands:
@@ -316,6 +336,7 @@ The current unit test suite covers areas such as:
 ## Security And Operational Notes
 
 - Page and API access are enforced through `requireAppSession` and `requireApiSession`.
+- The CRUD management API (`/api/v1/users`, `/api/v1/projects`) uses a separate Bearer token scheme enforced by `lib/crud-auth.ts`. It is independent of the session system and uses timing-safe comparison to validate `CRUD_API_KEY`.
 - State-changing routes use same-origin checks where configured through `APP_BASE_URL`.
 - Default API rate limiting is in-process memory based.
 - Health checks verify database reachability.
