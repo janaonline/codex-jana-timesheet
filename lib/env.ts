@@ -60,6 +60,7 @@ export const env = {
     [],
   ),
   observabilityWebhookUrl: getEnv("OBSERVABILITY_WEBHOOK_URL"),
+  crudApiKey: getEnv("CRUD_API_KEY") || undefined,
 };
 
 export function hasAzureSsoConfig() {

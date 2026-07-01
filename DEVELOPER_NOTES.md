@@ -120,10 +120,10 @@ These are the main places where the codebase can surprise future maintainers.
 
 ## Seed Data Notes
 
-- The seed script creates a small local dataset with owners, admins, operations, projects, timesheets, a pending edit request, and sample logs.
-- One seeded owner is intentionally left without a password to exercise the activation flow.
-- The seed script prints local-only credentials to stdout. Do not copy that output into docs, tickets, or shared channels.
-- Keep seed data assumptions in sync with [prisma/seed.ts](/d:/projects/codex-jana-timesheet/.git/codex-jana-timesheet/prisma/seed.ts).
+- The seed script upserts 18 Janaagraha staff users (1 ADMIN + 17 ASSOCIATE_DIRECTOR/ADMIN) with approver relationships.
+- `prisma/seed.ts` is gitignored and must be created locally from [prisma/seed.example.ts](/d:/projects/codex-jana-timesheet/.git/codex-jana-timesheet/prisma/seed.example.ts) before running `npm run db:seed`.
+- The seed script prints credential details to stdout. Do not copy that output into docs, tickets, or shared channels.
+- Keep user definitions (names, emails, roles, designations) in sync with [prisma/seed.example.ts](/d:/projects/codex-jana-timesheet/.git/codex-jana-timesheet/prisma/seed.example.ts).
 
 ## Safe Change Boundaries
 

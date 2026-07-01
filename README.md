@@ -116,7 +116,7 @@ Role permissions come from the default matrix in [lib/constants.ts](/d:/projects
 - [components](/d:/projects/codex-jana-timesheet/.git/codex-jana-timesheet/components): reusable UI pieces for auth, timesheets, admin, and common controls.
 - [services](/d:/projects/codex-jana-timesheet/.git/codex-jana-timesheet/services): business workflows, reporting, exports, jobs, email, and auth logic.
 - [lib](/d:/projects/codex-jana-timesheet/.git/codex-jana-timesheet/lib): shared rules, validation, RBAC, time helpers, API wrappers, and runtime config helpers.
-- [prisma](/d:/projects/codex-jana-timesheet/.git/codex-jana-timesheet/prisma): schema, migrations, and seed script.
+- [prisma](/d:/projects/codex-jana-timesheet/.git/codex-jana-timesheet/prisma): schema, migrations, and seed example template.
 - [tests/unit](/d:/projects/codex-jana-timesheet/.git/codex-jana-timesheet/tests/unit): focused business-rule and service tests.
 
 ## Important Runtime Files
@@ -206,9 +206,17 @@ npm run db:deploy
 
 Seed local data:
 
+`prisma/seed.ts` is gitignored and must be created from the committed template before seeding:
+
 ```bash
+# One-time setup: copy the template and fill in real passwords
+cp prisma/seed.example.ts prisma/seed.ts
+# Edit prisma/seed.ts — replace every REPLACE_WITH_ACTUAL_PASSWORD value
+
 npm run db:seed
 ```
+
+The seed script upserts users; re-running it is safe. It prints credential details to stdout — treat that output as sensitive and do not share it.
 
 Start the app:
 
@@ -224,8 +232,6 @@ npm run db:local:stop
 npm run build
 npm run start
 ```
-
-The seed script creates sample data for local workflow testing. It also prints local-only credential details to stdout, so treat seed output as sensitive.
 
 ## Background Automation
 

@@ -25,6 +25,7 @@ This workspace also has a local-only support path for developer verification:
 - Start the Prisma local database with `npm run db:local:start`
 - Confirm it with `npm run db:local:status`
 - Apply schema with `npm run db:deploy`
+- Copy seed template and fill passwords: `cp prisma/seed.example.ts prisma/seed.ts` (then edit `seed.ts`)
 - Load sample data with `npm run db:seed`
 - Keep `LOCAL_AUTH_ENABLED=true` only in local `.env.local`
 
