@@ -169,6 +169,37 @@ describe("workflow rules", () => {
     ).toBe(true);
   });
 
+  it("allows EDIT_APPROVED editing for historical months within the approval window", () => {
+    const editableUntil = new Date("2026-07-06T23:59:59+05:30");
+
+    expect(
+      canEditTimesheet({
+        status: "EDIT_APPROVED",
+        monthKey: "2026-03",
+        reference: new Date("2026-07-01T10:00:00+05:30"),
+        editWindowClosesAt: editableUntil,
+      }),
+    ).toBe(true);
+
+    expect(
+      canEditTimesheet({
+        status: "EDIT_APPROVED",
+        monthKey: "2026-03",
+        reference: new Date("2026-07-07T10:00:00+05:30"),
+        editWindowClosesAt: editableUntil,
+      }),
+    ).toBe(false);
+
+    expect(
+      getTimesheetViewAvailability({
+        status: "EDIT_APPROVED",
+        monthKey: "2026-03",
+        reference: new Date("2026-07-01T10:00:00+05:30"),
+        editWindowClosesAt: editableUntil,
+      }),
+    ).toEqual({ day: true, week: false, month: false });
+  });
+
   it("limits reopened previous-month sheets to day view while keeping current drafts fully multi-mode", () => {
     expect(
       getTimesheetViewAvailability({

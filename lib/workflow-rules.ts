@@ -45,6 +45,13 @@ export function canEditTimesheet(params: {
   reference: Date;
   editWindowClosesAt?: Date | null;
 }) {
+  // Admin-approved edit window takes precedence over age restrictions
+  if (params.status === "EDIT_APPROVED") {
+    return Boolean(
+      params.editWindowClosesAt && params.reference <= params.editWindowClosesAt,
+    );
+  }
+
   if (isHistoricalMonth(params.monthKey, params.reference)) {
     return false;
   }
@@ -58,12 +65,6 @@ export function canEditTimesheet(params: {
     }
 
     return true;
-  }
-
-  if (params.status === "EDIT_APPROVED") {
-    return Boolean(
-      params.editWindowClosesAt && params.reference <= params.editWindowClosesAt,
-    );
   }
 
   return false;
