@@ -27,7 +27,7 @@ npm run db:local     # Start local DB
 npm run db:migrate   # Apply migrations
 npm run db:seed      # Seed data
 npm run db:generate  # Regenerate Prisma client
-Key env vars: DATABASE_URL, NEXTAUTH_SECRET, APP_BASE_URL, ENABLE_SCHEDULER, AUTH_MODE
+Key env vars: DATABASE_URL, NEXTAUTH_SECRET, APP_BASE_URL, ENABLE_SCHEDULER, AUTH_MODE, CRUD_API_KEY
 
 Pages
 User-facing
@@ -53,6 +53,7 @@ In-memory rate limiting in lib/rate-limit.ts
 RBAC matrix in lib/rbac.ts; roles: PROGRAM_HEAD, ASSOCIATE_DIRECTOR, ADMIN, OPERATIONS
 Background jobs: auto-submit and freeze run at 0 0 * * * Asia/Kolkata; triggered from instrumentation.ts
 Job endpoints accept JWT session or x-job-secret header
+CRUD management endpoints (/api/v1/users, /api/v1/projects) use a separate Bearer token auth: Authorization: Bearer <CRUD_API_KEY>; see lib/crud-auth.ts
 Business rules to know:
 
 Timesheet periods are payroll-aligned: `YYYY-MM` covers the previous month's 20th inclusive through the labelled month's 20th exclusive. Example: `2026-05` covers 20 Apr 2026 through 19 May 2026 and auto-submit runs on 25 May 2026 at 00:00 IST.
@@ -69,11 +70,16 @@ Key Files
 File	Purpose
 lib/rbac.ts	Role-based access control
 lib/timesheet-allocation-forms.ts	Allocation business logic
+lib/crud-auth.ts	Bearer API key guard for CRUD endpoints
+lib/validators.ts	Shared request field validation helpers (requireString, requireEmail, requireEnum, etc.)
 services/timesheet-service.ts	Core workflow orchestration
 services/scheduler-service.ts	Cron job management
+services/user-service.ts	User CRUD (list, get, create, update, soft-delete)
+services/project-service.ts	Project CRUD (list, get, create, update, soft-delete)
 lib/autosave.ts	Draft persistence logic
 prisma/schema.prisma	Database schema
 instrumentation.ts	Scheduler entry point (Next.js hook)
+docs/API_USER_PROJECT_CRUD.md	Full reference for user and project CRUD API endpoints
 
 
 ---
